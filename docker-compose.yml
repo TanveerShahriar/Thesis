@@ -1,0 +1,11 @@
+services:
+  thesis-container:
+    build:
+      context: .        
+      dockerfile: Dockerfile
+    image: thesis  
+    container_name: thesis_container
+    volumes:
+      - .:/workspace/thesis
+    stdin_open: true
+    tty: true
