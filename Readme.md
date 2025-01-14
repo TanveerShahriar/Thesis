@@ -12,13 +12,8 @@ docker compose up
 
 docker exec -it thesis_container /bin/bash
 
-
 cd thesis
-cd call_graph 
+make
 
-make 
-cd build
-
-./CallGraphAnalyzer ../../input/input.cpp 
-
+make clean
 docker compose down
