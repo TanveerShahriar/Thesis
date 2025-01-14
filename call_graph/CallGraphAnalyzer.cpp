@@ -32,9 +32,7 @@ void CallGraphAnalyzer::dumpCallGraph() const {
 
     for (const auto &kv : CallGraph) {
         outputFile << kv.first << ":";
-        // llvm::outs() << kv.first << " calls:\n";
         for (const auto &callee : kv.second) {
-            // llvm::outs() << "  " << callee << "\n";
             outputFile << callee << " ";
         }
         outputFile << "\n";
