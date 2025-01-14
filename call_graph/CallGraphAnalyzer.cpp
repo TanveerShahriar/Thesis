@@ -4,6 +4,10 @@
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Support/CommandLine.h>
 
+#include <fstream>
+#include <filesystem>
+namespace fs = std::filesystem;
+
 using namespace clang;
 using namespace clang::ast_matchers;
 
@@ -16,12 +20,27 @@ const std::unordered_map<std::string, std::vector<std::string>> &CallGraphAnalyz
 }
 
 void CallGraphAnalyzer::dumpCallGraph() const {
-    for (const auto &kv : CallGraph) {
-        llvm::outs() << kv.first << " calls:\n";
-        for (const auto &callee : kv.second) {
-            llvm::outs() << "  " << callee << "\n";
-        }
+    std::string directory = "../../output";
+    std::string fileName = "output.txt";
+    std::string filePath = directory + "/" + fileName;
+
+    if (!fs::exists(directory)) {
+        fs::create_directory(directory);
     }
+
+    std::ofstream outputFile(filePath);
+
+    for (const auto &kv : CallGraph) {
+        outputFile << kv.first << ":";
+        // llvm::outs() << kv.first << " calls:\n";
+        for (const auto &callee : kv.second) {
+            // llvm::outs() << "  " << callee << "\n";
+            outputFile << callee << " ";
+        }
+        outputFile << "\n";
+    }
+
+    outputFile.close();
 }
 
 CallGraphAnalyzer::MyCallHandler::MyCallHandler(std::unordered_map<std::string, std::vector<std::string>> &graph)
