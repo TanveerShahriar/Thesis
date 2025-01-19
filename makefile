@@ -8,3 +8,4 @@ all:
 # Clean the build directory in the subdirectory
 clean:
 	$(MAKE) -C $(CALL_GRAPH_DIR) clean
+	rm -rf output

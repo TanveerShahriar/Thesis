@@ -6,6 +6,10 @@ services:
     image: thesis  
     container_name: thesis_container
     volumes:
-      - .:/workspace/thesis
+      - .:/thesis
+    working_dir: /thesis
+    command: ["make"]
+    # command: >
+    #   /bin/bash -c "make && tail -f /dev/null"
     stdin_open: true
     tty: true

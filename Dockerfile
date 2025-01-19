@@ -56,7 +56,7 @@ ENV PATH=$LLVM_INSTALL/bin:$PATH
 RUN pip3 install --upgrade pip && pip3 install numpy networkx scikit-learn matplotlib markov_clustering scipy cdlib
 
 # Set default working directory
-WORKDIR /workspace
+WORKDIR /thesis
 
 # Default command
 CMD ["bash"]
