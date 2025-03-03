@@ -5,9 +5,9 @@
 #include <clang/Tooling/Tooling.h>
 #include <clang/ASTMatchers/ASTMatchFinder.h>
 #include <clang/Tooling/CommonOptionsParser.h>
+#include <clang/Rewrite/Core/Rewriter.h>
 #include <llvm/Support/CommandLine.h>
 #include <fstream>
-#include <iostream>
 #include <filesystem>
 
 using namespace clang;
@@ -27,8 +27,7 @@ public:
 
             std::ofstream outFile(outputFile, std::ios::app);
             if (!outFile.is_open()) {
-                std::cerr << "Failed to open output file!\n";
-                return;
+                return; // Silent failure
             }
 
             outFile << "struct " << Func->getNameAsString() << "_Struct {\n";
@@ -47,31 +46,90 @@ private:
     std::string outputFile;
 };
 
+class FunctionRewriter : public MatchFinder::MatchCallback {
+public:
+    FunctionRewriter(Rewriter &R) : TheRewriter(R) {}
+
+    void run(const MatchFinder::MatchResult &Result) override {
+        if (const FunctionDecl *Func = Result.Nodes.getNodeAs<FunctionDecl>("function")) {
+            if (Func->isImplicit() || !Func->isDefined() || Func->getNameAsString() == "main") {
+                return;
+            }
+
+            // 1. Rewrite return type to void
+            SourceLocation ReturnTypeStart = Func->getReturnTypeSourceRange().getBegin();
+            TheRewriter.ReplaceText(ReturnTypeStart, Func->getReturnType().getAsString().length(), "void");
+
+            if (auto FTL = Func->getTypeSourceInfo()->getTypeLoc().getAs<FunctionTypeLoc>()) {
+                SourceLocation LParenLoc = FTL.getLParenLoc();
+                SourceLocation RParenLoc = FTL.getRParenLoc();
+                if (LParenLoc.isValid() && RParenLoc.isValid() && LParenLoc < RParenLoc) {
+                    TheRewriter.ReplaceText(SourceRange(LParenLoc, RParenLoc),
+                                            "(int thread_idx, int param_index)");
+                }
+            }
+
+            // 3. Modify return statements if the original return type was not void
+            if (!Func->getReturnType()->isVoidType()) {
+                if (const CompoundStmt *Body = dyn_cast<CompoundStmt>(Func->getBody())) {
+                    for (auto *Stmt : Body->body()) {
+                        if (const ReturnStmt *RetStmt = dyn_cast<ReturnStmt>(Stmt)) {
+                            SourceLocation RetStart = RetStmt->getBeginLoc();
+                            std::string ReturnReplacement = Func->getNameAsString() + "_params[param_index].return_var = ";
+                            TheRewriter.ReplaceText(SourceRange(RetStart, RetStart.getLocWithOffset(6)),
+                                                    ReturnReplacement);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+private:
+    Rewriter &TheRewriter;
+};
+
 class FunctionASTConsumer : public ASTConsumer {
 public:
-    FunctionASTConsumer(const std::string &outputFile) : Handler(outputFile) {
-        Matcher.addMatcher(functionDecl(isExpansionInMainFile()).bind("function"), &Handler);
+    FunctionASTConsumer(Rewriter &R, const std::string &outputFile)
+        : StructDumper(outputFile), FuncRewriter(R) {
+        Matcher.addMatcher(functionDecl(isExpansionInMainFile()).bind("function"), &StructDumper);
+        Matcher.addMatcher(functionDecl(isExpansionInMainFile()).bind("function"), &FuncRewriter);
     }
+
     void HandleTranslationUnit(ASTContext &Context) override {
         Matcher.matchAST(Context);
     }
+
 private:
-    FunctionStructDumper Handler;
+    FunctionStructDumper StructDumper;
+    FunctionRewriter FuncRewriter;
     MatchFinder Matcher;
 };
 
 class FunctionFrontendAction : public ASTFrontendAction {
 public:
-    std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI, StringRef) override {
-        return std::make_unique<FunctionASTConsumer>(outputFile);
-    }
+    FunctionFrontendAction() : outputFile("output/struct.cpp") {}
 
     void EndSourceFileAction() override {
-        std::cout << "Structs dumped in " << outputFile << "\n";
+        // Save the changes to the input source file
+        std::error_code EC;
+        llvm::raw_fd_ostream OutFile(SourceFilePath, EC, llvm::sys::fs::OF_Text);
+        if (!EC) {
+            TheRewriter.getEditBuffer(TheRewriter.getSourceMgr().getMainFileID()).write(OutFile);
+        }
+    }
+
+    std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI, StringRef file) override {
+        TheRewriter.setSourceMgr(CI.getSourceManager(), CI.getLangOpts());
+        SourceFilePath = file.str();
+        return std::make_unique<FunctionASTConsumer>(TheRewriter, outputFile);
     }
 
 private:
-    std::string outputFile = "output/struct.cpp";
+    Rewriter TheRewriter;
+    std::string SourceFilePath;
+    std::string outputFile;
 };
 
 static llvm::cl::OptionCategory MyToolCategory("my-tool options");
@@ -84,7 +142,6 @@ int main(int argc, const char **argv) {
 
         auto ExpectedParser = CommonOptionsParser::create(argc, argv, MyToolCategory);
         if (!ExpectedParser) {
-            llvm::errs() << ExpectedParser.takeError();
             return 1;
         }
         CommonOptionsParser &OptionsParser = ExpectedParser.get();
@@ -92,6 +149,5 @@ int main(int argc, const char **argv) {
         ClangTool Tool(OptionsParser.getCompilations(), OptionsParser.getSourcePathList());
         return Tool.run(newFrontendActionFactory<FunctionFrontendAction>().get());
     }
-    std::cerr << "Usage: " << argv[0] << " <source-file>\n";
     return 1;
 }
