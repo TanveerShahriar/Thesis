@@ -34,9 +34,12 @@ public:
             for (const ParmVarDecl *Param : Func->parameters()) {
                 outFile << "    " << Param->getType().getAsString() << " " << Param->getNameAsString() << ";\n";
             }
+
             if (!Func->getReturnType()->isVoidType()) {
                 outFile << "    " << Func->getReturnType().getAsString() << " return_var;\n";
+                outFile << "    bool " << Func->getNameAsString() << "_done;\n";
             }
+
             outFile << "};\n\n";
             outFile.close();
         }
