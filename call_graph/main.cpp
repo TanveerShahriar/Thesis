@@ -22,12 +22,12 @@ public:
     void run(const MatchFinder::MatchResult &Result) override {
         if (const FunctionDecl *Func = Result.Nodes.getNodeAs<FunctionDecl>("function")) {
             if (Func->isImplicit() || !Func->isDefined() || Func->getNameAsString() == "main") {
-                return; // Ignore built-in, undefined, and main functions
+                return;
             }
 
             std::ofstream outFile(outputFile, std::ios::app);
             if (!outFile.is_open()) {
-                return; // Silent failure
+                return;
             }
 
             outFile << "struct " << Func->getNameAsString() << "_Struct {\n";
@@ -49,15 +49,17 @@ private:
     std::string outputFile;
 };
 
-class FunctionRewriter : public MatchFinder::MatchCallback {
+class FunctionRewriter : public MatchFinder::MatchCallback, public RecursiveASTVisitor<FunctionRewriter> {
 public:
-    FunctionRewriter(Rewriter &R) : TheRewriter(R) {}
+    FunctionRewriter(Rewriter &R) : TheRewriter(R), CurrentFunction(nullptr) {}
 
     void run(const MatchFinder::MatchResult &Result) override {
         if (const FunctionDecl *Func = Result.Nodes.getNodeAs<FunctionDecl>("function")) {
             if (Func->isImplicit() || !Func->isDefined() || Func->getNameAsString() == "main") {
                 return;
             }
+
+            CurrentFunction = Func;
 
             // 1. Rewrite return type to void
             SourceLocation ReturnTypeStart = Func->getReturnTypeSourceRange().getBegin();
@@ -85,11 +87,33 @@ public:
                     }
                 }
             }
+
+            // Traverse function body to replace parameters
+            TraverseDecl(const_cast<FunctionDecl *>(Func));
+
+            CurrentFunction = nullptr;
         }
+    }
+
+    // Visitor function to replace parameter references in the function body
+    bool VisitDeclRefExpr(DeclRefExpr *DRE) {
+        if (!CurrentFunction) return true; // Ensure we are inside a function
+
+        if (const ParmVarDecl *PVD = dyn_cast<ParmVarDecl>(DRE->getDecl())) {
+            std::string functionName = CurrentFunction->getNameAsString();
+            std::string paramName = PVD->getNameAsString();
+
+            std::string replacement = functionName + "_params[param_index]." + paramName;
+
+            SourceLocation ParamLoc = DRE->getBeginLoc();
+            TheRewriter.ReplaceText(ParamLoc, paramName.length(), replacement);
+        }
+        return true; // Continue traversal
     }
 
 private:
     Rewriter &TheRewriter;
+    const FunctionDecl *CurrentFunction; // Stores the current function being processed
 };
 
 class FunctionASTConsumer : public ASTConsumer {
