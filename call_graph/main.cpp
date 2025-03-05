@@ -128,6 +128,19 @@ public:
     if (functionName.find("operator") == 0)
         return true;
 
+    // Inside VisitCallExpr(CallExpr *CE)
+    std::string argsString;
+    const SourceManager &SM1 = TheRewriter.getSourceMgr();
+    for (unsigned i = 0; i < CE->getNumArgs(); ++i) {
+        const Expr *arg = CE->getArg(i);
+        SourceRange argRange = arg->getSourceRange();
+        llvm::StringRef argText = Lexer::getSourceText(CharSourceRange::getTokenRange(argRange), SM1, TheRewriter.getLangOpts());
+        if (i > 0) {
+            argsString += ", ";
+        }
+        argsString += argText.str();
+    }
+
     // Prepare the text to insert and the replacement text
     std::string pushThreadStmt = "int index; \n { \n unique_lock<mutex> lock(mutexes[thread_idx]);\n if ( " + 
         functionName + "_params_index_pool.empty()){\n index = " + 
@@ -135,7 +148,7 @@ public:
         functionName + "_params.emplace_back();\n }\n else { \n index = " +
         functionName + "_params.index.pool.front(); \n" + 
         functionName + "_params_index_pool.pop(); \n }\n" + 
-        functionName + "_params[index] = {};\n }\n" + "pushToThread(" + functionName + "_enumidx);\n";
+        functionName + "_params[index] = {" + argsString +"};\n }\n" + "pushToThread(" + functionName + "_enumidx);\n";
     std::string returnReplacement = functionName + "_params[index]." + functionName + "_return";
 
     // Get the token range for the call expression
