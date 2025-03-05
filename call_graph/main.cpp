@@ -37,7 +37,7 @@ public:
 
             if (!Func->getReturnType()->isVoidType()) {
                 outFile << "    " << Func->getReturnType().getAsString() << " return_var;\n";
-                outFile << "    bool " << Func->getNameAsString() << "_done;\n";
+                outFile << "    bool " << Func->getNameAsString() << "_done = false;\n";
             }
 
             outFile << "};\n\n";
@@ -74,7 +74,7 @@ public:
                 }
             }
 
-            // 3. Modify return statements if the original return type was not void
+            // 2. Modify return statements if the original return type was not void
             if (!Func->getReturnType()->isVoidType()) {
                 if (const CompoundStmt *Body = dyn_cast<CompoundStmt>(Func->getBody())) {
                     for (auto *Stmt : Body->body()) {
@@ -88,16 +88,16 @@ public:
                 }
             }
 
-            // Traverse function body to replace parameters
+            // 3. Traverse function body to replace parameters and function calls
+            CurrentFunction = Func;
             TraverseDecl(const_cast<FunctionDecl *>(Func));
-
             CurrentFunction = nullptr;
         }
     }
 
     // Visitor function to replace parameter references in the function body
     bool VisitDeclRefExpr(DeclRefExpr *DRE) {
-        if (!CurrentFunction) return true; // Ensure we are inside a function
+        if (!CurrentFunction) return true;
 
         if (const ParmVarDecl *PVD = dyn_cast<ParmVarDecl>(DRE->getDecl())) {
             std::string functionName = CurrentFunction->getNameAsString();
@@ -108,12 +108,43 @@ public:
             SourceLocation ParamLoc = DRE->getBeginLoc();
             TheRewriter.ReplaceText(ParamLoc, paramName.length(), replacement);
         }
-        return true; // Continue traversal
+        return true;
+    }
+
+    // Visitor function to handle function calls
+    bool VisitCallExpr(CallExpr *CE) {
+        if (!CE->getDirectCallee()) return true;
+
+        const FunctionDecl *Callee = CE->getDirectCallee();
+        
+        if (Callee->isImplicit() || Callee->getBuiltinID() != 0) return true;
+
+        if (!Callee->getDefinition()) return true;
+
+        std::string functionName = Callee->getNameAsString();
+        
+        if (functionName.find("operator") == 0) return true;
+
+        std::string pushThreadStmt = "pushToThread(" + functionName + "_enumidx);\n";
+        std::string returnReplacement = functionName + "_params[index]." + functionName + "_return";
+
+        SourceLocation CallStart = CE->getBeginLoc();
+        SourceLocation CallEnd = CE->getEndLoc();
+
+        if (!CallStart.isValid() || !CallEnd.isValid()) return true;
+
+        TheRewriter.InsertText(CallStart, pushThreadStmt, true, true);
+
+        if (!Callee->getReturnType()->isVoidType()) {
+            TheRewriter.ReplaceText(SourceRange(CallStart, CallEnd), returnReplacement);
+        }
+
+        return true;
     }
 
 private:
     Rewriter &TheRewriter;
-    const FunctionDecl *CurrentFunction; // Stores the current function being processed
+    const FunctionDecl *CurrentFunction;
 };
 
 class FunctionASTConsumer : public ASTConsumer {
@@ -139,7 +170,6 @@ public:
     FunctionFrontendAction() : outputFile("output/struct.cpp") {}
 
     void EndSourceFileAction() override {
-        // Save the changes to the input source file
         std::error_code EC;
         llvm::raw_fd_ostream OutFile(SourceFilePath, EC, llvm::sys::fs::OF_Text);
         if (!EC) {
