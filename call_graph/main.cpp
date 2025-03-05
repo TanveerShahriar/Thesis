@@ -113,34 +113,61 @@ public:
 
     // Visitor function to handle function calls
     bool VisitCallExpr(CallExpr *CE) {
-        if (!CE->getDirectCallee()) return true;
-
-        const FunctionDecl *Callee = CE->getDirectCallee();
-        
-        if (Callee->isImplicit() || Callee->getBuiltinID() != 0) return true;
-
-        if (!Callee->getDefinition()) return true;
-
-        std::string functionName = Callee->getNameAsString();
-        
-        if (functionName.find("operator") == 0) return true;
-
-        std::string pushThreadStmt = "pushToThread(" + functionName + "_enumidx);\n";
-        std::string returnReplacement = functionName + "_params[index]." + functionName + "_return";
-
-        SourceLocation CallStart = CE->getBeginLoc();
-        SourceLocation CallEnd = CE->getEndLoc();
-
-        if (!CallStart.isValid() || !CallEnd.isValid()) return true;
-
-        TheRewriter.InsertText(CallStart, pushThreadStmt, true, true);
-
-        if (!Callee->getReturnType()->isVoidType()) {
-            TheRewriter.ReplaceText(SourceRange(CallStart, CallEnd), returnReplacement);
-        }
-
+    if (!CE->getDirectCallee())
         return true;
+
+    const FunctionDecl *Callee = CE->getDirectCallee();
+
+    // Skip built-in functions, implicit functions, or functions without a body
+    if (Callee->isImplicit() || Callee->getBuiltinID() != 0 || !Callee->doesThisDeclarationHaveABody())
+        return true;
+
+    std::string functionName = Callee->getNameAsString();
+
+    // Skip overloaded operators (e.g. operator<<)
+    if (functionName.find("operator") == 0)
+        return true;
+
+    // Prepare the text to insert and the replacement text
+    std::string pushThreadStmt = "pushToThread(FUNC_" + functionName + ");\n";
+    std::string returnReplacement = functionName + "_params[index]." + functionName + "_return";
+
+    // Get the token range for the call expression
+    SourceRange callRange = CE->getSourceRange();
+    CharSourceRange charRange = CharSourceRange::getTokenRange(callRange);
+    SourceLocation callStart = charRange.getBegin();
+
+    // Get the SourceManager and determine the start of the line where the call occurs
+    const SourceManager &SM = TheRewriter.getSourceMgr();
+    SourceLocation expansionLoc = SM.getExpansionLoc(callStart);
+    FileID fid = SM.getFileID(expansionLoc);
+    unsigned offset = SM.getFileOffset(expansionLoc);
+    unsigned colNo = SM.getColumnNumber(fid, offset);
+    SourceLocation lineStart = callStart.getLocWithOffset(-static_cast<int>(colNo) + 1);
+
+    // Insert the pushToThread statement at the beginning of the line
+    TheRewriter.InsertTextBefore(lineStart, pushThreadStmt);
+
+    // If the function returns a value, replace only the call expression tokens.
+    if (!Callee->getReturnType()->isVoidType()) {
+        TheRewriter.ReplaceText(charRange, returnReplacement);
+    } else {
+        // For void functions, try to remove the entire statement including the trailing semicolon.
+        SourceLocation callEnd = CE->getEndLoc();
+        // Use the Lexer to find the semicolon after the call.
+        SourceLocation semiLoc = Lexer::findLocationAfterToken(
+            callEnd, tok::semi, SM, TheRewriter.getLangOpts(), /*SkipTrailingWhitespace=*/false);
+        if (semiLoc.isValid()) {
+            // Remove from the beginning of the call to the semicolon.
+            TheRewriter.RemoveText(SourceRange(callStart, semiLoc));
+        } else {
+            // Fallback: remove only the call expression tokens.
+            TheRewriter.RemoveText(charRange);
+        }
     }
+
+    return true;
+}
 
 private:
     Rewriter &TheRewriter;
