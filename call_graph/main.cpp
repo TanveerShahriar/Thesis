@@ -129,7 +129,13 @@ public:
         return true;
 
     // Prepare the text to insert and the replacement text
-    std::string pushThreadStmt = "pushToThread(FUNC_" + functionName + ");\n";
+    std::string pushThreadStmt = "int index; \n { \n unique_lock<mutex> lock(mutexes[thread_idx]);\n if ( " + 
+        functionName + "_params_index_pool.empty()){\n index = " + 
+        functionName + "_params.size();\n" + 
+        functionName + "_params.emplace_back();\n }\n else { \n index = " +
+        functionName + "_params.index.pool.front(); \n" + 
+        functionName + "_params_index_pool.pop(); \n }\n" + 
+        functionName + "_params[index] = {};\n }\n" + "pushToThread(" + functionName + "_enumidx);\n";
     std::string returnReplacement = functionName + "_params[index]." + functionName + "_return";
 
     // Get the token range for the call expression
