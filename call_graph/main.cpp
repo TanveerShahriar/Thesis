@@ -149,6 +149,11 @@ public:
         functionName + "_params.index.pool.front(); \n" + 
         functionName + "_params_index_pool.pop(); \n }\n" + 
         functionName + "_params[index] = {" + argsString +"};\n }\n" + "pushToThread(" + functionName + "_enumidx);\n";
+    
+     if (!Callee->getReturnType()->isVoidType()) {
+        pushThreadStmt += "while (!" + functionName + "_params[index]." + functionName 
+        + "_done) {\n if(!queues[thread_idx].empty()) execute(thread_idx); \n} \n";
+     }
     std::string returnReplacement = functionName + "_params[index]." + functionName + "_return";
 
     // Get the token range for the call expression
