@@ -2,8 +2,11 @@
 
 using namespace std;
 
+int x = 5;
+
 int funcE(int a, int b){
     cout << "Inside E " << endl;
+    x += 5;
     return 2 * a + 2 * b;
 }
 
@@ -11,7 +14,8 @@ int funcD(int a, int b){
     cout << "Start D " << endl;
 
     int res = funcE(2, 3);
-
+    
+    cout << x << endl; 
     cout << "End D " << res << " " << endl;
     return res - a + b;
 }

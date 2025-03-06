@@ -116,9 +116,11 @@ public:
         }
     }
 
-    // Visitor to replace parameter references.
     bool VisitDeclRefExpr(DeclRefExpr *DRE) {
-        if (!CurrentFunction) return true;
+        if (!CurrentFunction)
+            return true;
+
+        // (1) Existing action: Rewrite parameter references.
         if (const ParmVarDecl *PVD = dyn_cast<ParmVarDecl>(DRE->getDecl())) {
             std::string functionName = CurrentFunction->getNameAsString();
             std::string paramName = PVD->getNameAsString();
@@ -126,8 +128,52 @@ public:
             SourceLocation ParamLoc = DRE->getBeginLoc();
             TheRewriter.ReplaceText(ParamLoc, paramName.length(), replacement);
         }
+
+        // (2) Global variable usage rewriting: wrap the entire line in a block with a lock.
+        if (const VarDecl *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
+            const SourceManager &SM = TheRewriter.getSourceMgr();
+            // Skip globals defined in system headers.
+            if (SM.isInSystemHeader(VD->getLocation()))
+                return true;
+
+            if (VD->getDeclContext()->isTranslationUnit() || VD->hasGlobalStorage()) {
+                SourceLocation loc = DRE->getBeginLoc();
+                unsigned line = SM.getSpellingLineNumber(loc);
+
+                // Only process this line once.
+                if (processedGlobalLines.find(line) == processedGlobalLines.end()) {
+                    processedGlobalLines.insert(line);
+
+                    // Compute the start of the line.
+                    unsigned offset = SM.getFileOffset(loc);
+                    unsigned colNo = SM.getColumnNumber(SM.getFileID(loc), offset);
+                    SourceLocation lineStart = loc.getLocWithOffset(-static_cast<int>(colNo) + 1);
+
+                    // Get the buffer for the file to find the end of the line.
+                    FileID fid = SM.getFileID(loc);
+                    bool invalid = false;
+                    StringRef buffer = SM.getBufferData(fid, &invalid);
+                    if (!invalid) {
+                        // Find the end of the line by advancing until a newline or end-of-buffer.
+                        unsigned lineEndOffset = offset;
+                        while (lineEndOffset < buffer.size() && buffer[lineEndOffset] != '\n')
+                            ++lineEndOffset;
+                        SourceLocation lineEnd = SM.getLocForStartOfFile(fid).getLocWithOffset(lineEndOffset);
+
+                        // Insert the opening brace and lock at the beginning of the line.
+                        std::string lockBlockStart = "{ unique_lock<mutex> lock(mutexes[thread_idx]);";
+                        TheRewriter.InsertText(lineStart, lockBlockStart, true, true);
+                        // Insert the closing brace after the line.
+                        std::string lockBlockEnd = " }";
+                        TheRewriter.InsertTextAfterToken(lineEnd, lockBlockEnd);
+                    }
+                }
+            }
+        }
+
         return true;
     }
+
 
     // Visitor to handle function calls.
     bool VisitCallExpr(CallExpr *CE) {
@@ -200,8 +246,8 @@ public:
 private:
     Rewriter &TheRewriter;
     const FunctionDecl *CurrentFunction;
-    // A vector to record each non-void function call inside the current function.
     std::vector<std::string> nonVoidCallees;
+    std::set<unsigned> processedGlobalLines;
 };
 
 
