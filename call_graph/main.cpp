@@ -55,13 +55,11 @@ public:
 
     void run(const MatchFinder::MatchResult &Result) override {
         if (const FunctionDecl *Func = Result.Nodes.getNodeAs<FunctionDecl>("function")) {
-            if (Func->isImplicit() || !Func->isDefined() || Func->getNameAsString() == "main") {
+            if (Func->isImplicit() || !Func->isDefined() || Func->getNameAsString() == "main")
                 return;
-            }
 
             CurrentFunction = Func;
-
-            // 1. Rewrite return type to void
+            // (1) Rewrite return type and function signature as you already do.
             SourceLocation ReturnTypeStart = Func->getReturnTypeSourceRange().getBegin();
             TheRewriter.ReplaceText(ReturnTypeStart, Func->getReturnType().getAsString().length(), "void");
 
@@ -70,11 +68,11 @@ public:
                 SourceLocation RParenLoc = FTL.getRParenLoc();
                 if (LParenLoc.isValid() && RParenLoc.isValid() && LParenLoc < RParenLoc) {
                     TheRewriter.ReplaceText(SourceRange(LParenLoc, RParenLoc),
-                                            "(int thread_idx, int param_index)");
+                                              "(int thread_idx, int param_index)");
                 }
             }
 
-            // 2. Modify return statements if the original return type was not void
+            // (2) Process return statements if needed.
             if (!Func->getReturnType()->isVoidType()) {
                 if (const CompoundStmt *Body = dyn_cast<CompoundStmt>(Func->getBody())) {
                     for (auto *Stmt : Body->body()) {
@@ -82,121 +80,126 @@ public:
                             SourceLocation RetStart = RetStmt->getBeginLoc();
                             std::string ReturnReplacement = Func->getNameAsString() + "_params[param_index].return_var = ";
                             TheRewriter.ReplaceText(SourceRange(RetStart, RetStart.getLocWithOffset(6)),
-                                                    ReturnReplacement);
+                                                      ReturnReplacement);
                         }
                     }
                 }
             }
 
-            // 3. Traverse function body to replace parameters and function calls
-            CurrentFunction = Func;
+            // (3) Traverse function body to rewrite parameter references and record call expressions.
+            nonVoidCallees.clear();
             TraverseDecl(const_cast<FunctionDecl *>(Func));
+
+            // (4) Insert the extra lines at the end of the function body.
+            if (const CompoundStmt *Body = dyn_cast<CompoundStmt>(Func->getBody())) {
+                SourceLocation InsertLoc = Body->getRBracLoc(); // before the closing '}'
+                std::string extraCode;
+                // For each non-void callee that was called inside, insert the push statement.
+                for (const auto &callee : nonVoidCallees) {
+                    // NOTE: This assumes that the variable 'index' is in scope.
+                    // You might need to adjust your code so that 'index' is declared in a scope
+                    // accessible here (for example, store the computed index from the call expression).
+                    extraCode += callee + "_params_index_pool.push(index);\n";
+                }
+                // If the current function returns a value, mark it done.
+                if (!Func->getReturnType()->isVoidType()) {
+                    extraCode += Func->getNameAsString() + "_params[param_index]." + Func->getNameAsString() + "_done = true;\n";
+                }
+                TheRewriter.InsertTextBefore(InsertLoc, extraCode);
+            }
+
             CurrentFunction = nullptr;
         }
     }
 
-    // Visitor function to replace parameter references in the function body
+    // Visitor to replace parameter references.
     bool VisitDeclRefExpr(DeclRefExpr *DRE) {
         if (!CurrentFunction) return true;
-
         if (const ParmVarDecl *PVD = dyn_cast<ParmVarDecl>(DRE->getDecl())) {
             std::string functionName = CurrentFunction->getNameAsString();
             std::string paramName = PVD->getNameAsString();
-
             std::string replacement = functionName + "_params[param_index]." + paramName;
-
             SourceLocation ParamLoc = DRE->getBeginLoc();
             TheRewriter.ReplaceText(ParamLoc, paramName.length(), replacement);
         }
         return true;
     }
 
-    // Visitor function to handle function calls
+    // Visitor to handle function calls.
     bool VisitCallExpr(CallExpr *CE) {
-    if (!CE->getDirectCallee())
-        return true;
+        if (!CE->getDirectCallee())
+            return true;
+        const FunctionDecl *Callee = CE->getDirectCallee();
+        if (Callee->isImplicit() || Callee->getBuiltinID() != 0 || !Callee->doesThisDeclarationHaveABody())
+            return true;
 
-    const FunctionDecl *Callee = CE->getDirectCallee();
+        std::string functionName = Callee->getNameAsString();
+        if (functionName.find("operator") == 0)
+            return true;
 
-    // Skip built-in functions, implicit functions, or functions without a body
-    if (Callee->isImplicit() || Callee->getBuiltinID() != 0 || !Callee->doesThisDeclarationHaveABody())
-        return true;
-
-    std::string functionName = Callee->getNameAsString();
-
-    // Skip overloaded operators (e.g. operator<<)
-    if (functionName.find("operator") == 0)
-        return true;
-
-    // Inside VisitCallExpr(CallExpr *CE)
-    std::string argsString;
-    const SourceManager &SM1 = TheRewriter.getSourceMgr();
-    for (unsigned i = 0; i < CE->getNumArgs(); ++i) {
-        const Expr *arg = CE->getArg(i);
-        SourceRange argRange = arg->getSourceRange();
-        llvm::StringRef argText = Lexer::getSourceText(CharSourceRange::getTokenRange(argRange), SM1, TheRewriter.getLangOpts());
-        if (i > 0) {
-            argsString += ", ";
+        const SourceManager &SM1 = TheRewriter.getSourceMgr();
+        std::string argsString;
+        for (unsigned i = 0; i < CE->getNumArgs(); ++i) {
+            const Expr *arg = CE->getArg(i);
+            SourceRange argRange = arg->getSourceRange();
+            llvm::StringRef argText = Lexer::getSourceText(CharSourceRange::getTokenRange(argRange), SM1, TheRewriter.getLangOpts());
+            if (i > 0) argsString += ", ";
+            argsString += argText.str();
         }
-        argsString += argText.str();
-    }
 
-    // Prepare the text to insert and the replacement text
-    std::string pushThreadStmt = "int index; \n { \n unique_lock<mutex> lock(mutexes[thread_idx]);\n if ( " + 
-        functionName + "_params_index_pool.empty()){\n index = " + 
-        functionName + "_params.size();\n" + 
-        functionName + "_params.emplace_back();\n }\n else { \n index = " +
-        functionName + "_params.index.pool.front(); \n" + 
-        functionName + "_params_index_pool.pop(); \n }\n" + 
-        functionName + "_params[index] = {" + argsString +"};\n }\n" + "pushToThread(" + functionName + "_enumidx);\n";
-    
-     if (!Callee->getReturnType()->isVoidType()) {
-        pushThreadStmt += "while (!" + functionName + "_params[index]." + functionName 
-        + "_done) {\n if(!queues[thread_idx].empty()) execute(thread_idx); \n} \n";
-     }
-    std::string returnReplacement = functionName + "_params[index]." + functionName + "_return";
+        std::string pushThreadStmt = "int index; \n { \n unique_lock<mutex> lock(mutexes[thread_idx]);\n if (" +
+            functionName + "_params_index_pool.empty()){\n index = " + functionName +
+            "_params.size();\n" + functionName + "_params.emplace_back();\n }\n else { \n index = " +
+            functionName + "_params_index_pool.front(); \n" + functionName + "_params_index_pool.pop(); \n }\n" +
+            functionName + "_params[index] = {" + argsString + "};\n }\n" +
+            "pushToThread(" + functionName + "_enumidx);\n";
 
-    // Get the token range for the call expression
-    SourceRange callRange = CE->getSourceRange();
-    CharSourceRange charRange = CharSourceRange::getTokenRange(callRange);
-    SourceLocation callStart = charRange.getBegin();
+        if (!Callee->getReturnType()->isVoidType()) {
+            pushThreadStmt += "while (!" + functionName + "_params[index]." + functionName +
+                "_done) {\n if(!queues[thread_idx].empty()) execute(thread_idx); \n} \n";
+            // Record the callee name so that later we add the push statement
+            nonVoidCallees.push_back(functionName);
+        }
 
-    // Get the SourceManager and determine the start of the line where the call occurs
-    const SourceManager &SM = TheRewriter.getSourceMgr();
-    SourceLocation expansionLoc = SM.getExpansionLoc(callStart);
-    FileID fid = SM.getFileID(expansionLoc);
-    unsigned offset = SM.getFileOffset(expansionLoc);
-    unsigned colNo = SM.getColumnNumber(fid, offset);
-    SourceLocation lineStart = callStart.getLocWithOffset(-static_cast<int>(colNo) + 1);
+        SourceRange callRange = CE->getSourceRange();
+        CharSourceRange charRange = CharSourceRange::getTokenRange(callRange);
+        SourceLocation callStart = charRange.getBegin();
 
-    // Insert the pushToThread statement at the beginning of the line
-    TheRewriter.InsertTextBefore(lineStart, pushThreadStmt);
+        // Find the beginning of the line where the call occurs.
+        const SourceManager &SM = TheRewriter.getSourceMgr();
+        SourceLocation expansionLoc = SM.getExpansionLoc(callStart);
+        FileID fid = SM.getFileID(expansionLoc);
+        unsigned offset = SM.getFileOffset(expansionLoc);
+        unsigned colNo = SM.getColumnNumber(fid, offset);
+        SourceLocation lineStart = callStart.getLocWithOffset(-static_cast<int>(colNo) + 1);
 
-    // If the function returns a value, replace only the call expression tokens.
-    if (!Callee->getReturnType()->isVoidType()) {
-        TheRewriter.ReplaceText(charRange, returnReplacement);
-    } else {
-        // For void functions, try to remove the entire statement including the trailing semicolon.
-        SourceLocation callEnd = CE->getEndLoc();
-        // Use the Lexer to find the semicolon after the call.
-        SourceLocation semiLoc = Lexer::findLocationAfterToken(
-            callEnd, tok::semi, SM, TheRewriter.getLangOpts(), /*SkipTrailingWhitespace=*/false);
-        if (semiLoc.isValid()) {
-            // Remove from the beginning of the call to the semicolon.
-            TheRewriter.RemoveText(SourceRange(callStart, semiLoc));
+        // Insert the pushThreadStmt before the line.
+        TheRewriter.InsertTextBefore(lineStart, pushThreadStmt);
+
+        if (!Callee->getReturnType()->isVoidType()) {
+            std::string returnReplacement = functionName + "_params[index]." + functionName + "_return";
+            TheRewriter.ReplaceText(charRange, returnReplacement);
         } else {
-            // Fallback: remove only the call expression tokens.
-            TheRewriter.RemoveText(charRange);
+            SourceLocation callEnd = CE->getEndLoc();
+            SourceLocation semiLoc = Lexer::findLocationAfterToken(
+                callEnd, tok::semi, SM, TheRewriter.getLangOpts(), false);
+            if (semiLoc.isValid()) {
+                TheRewriter.RemoveText(SourceRange(callStart, semiLoc));
+            } else {
+                TheRewriter.RemoveText(charRange);
+            }
         }
-    }
 
-    return true;
-}
+        return true;
+    }
 
 private:
     Rewriter &TheRewriter;
     const FunctionDecl *CurrentFunction;
+    // A vector to record each non-void function call inside the current function.
+    std::vector<std::string> nonVoidCallees;
 };
+
 
 class FunctionASTConsumer : public ASTConsumer {
 public:
