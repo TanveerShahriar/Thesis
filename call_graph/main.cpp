@@ -96,13 +96,9 @@ public:
 
             // (4) Insert the extra lines at the end of the function body.
             if (const CompoundStmt *Body = dyn_cast<CompoundStmt>(Func->getBody())) {
-                SourceLocation InsertLoc = Body->getRBracLoc(); // before the closing '}'
+                SourceLocation InsertLoc = Body->getRBracLoc();
                 std::string extraCode;
-                // For each non-void callee that was called inside, insert the push statement.
                 for (const auto &callee : nonVoidCallees) {
-                    // NOTE: This assumes that the variable 'index' is in scope.
-                    // You might need to adjust your code so that 'index' is declared in a scope
-                    // accessible here (for example, store the computed index from the call expression).
                     extraCode += callee + "_params_index_pool.push(index);\n";
                 }
                 // If the current function returns a value, mark it done.
@@ -132,7 +128,6 @@ public:
         // (2) Global variable usage rewriting: wrap the entire line in a block with a lock.
         if (const VarDecl *VD = dyn_cast<VarDecl>(DRE->getDecl())) {
             const SourceManager &SM = TheRewriter.getSourceMgr();
-            // Skip globals defined in system headers.
             if (SM.isInSystemHeader(VD->getLocation()))
                 return true;
 
@@ -149,21 +144,17 @@ public:
                     unsigned colNo = SM.getColumnNumber(SM.getFileID(loc), offset);
                     SourceLocation lineStart = loc.getLocWithOffset(-static_cast<int>(colNo) + 1);
 
-                    // Get the buffer for the file to find the end of the line.
                     FileID fid = SM.getFileID(loc);
                     bool invalid = false;
                     StringRef buffer = SM.getBufferData(fid, &invalid);
                     if (!invalid) {
-                        // Find the end of the line by advancing until a newline or end-of-buffer.
                         unsigned lineEndOffset = offset;
                         while (lineEndOffset < buffer.size() && buffer[lineEndOffset] != '\n')
                             ++lineEndOffset;
                         SourceLocation lineEnd = SM.getLocForStartOfFile(fid).getLocWithOffset(lineEndOffset);
 
-                        // Insert the opening brace and lock at the beginning of the line.
                         std::string lockBlockStart = "{ unique_lock<mutex> lock(mutexes[thread_idx]);";
                         TheRewriter.InsertText(lineStart, lockBlockStart, true, true);
-                        // Insert the closing brace after the line.
                         std::string lockBlockEnd = " }";
                         TheRewriter.InsertTextAfterToken(lineEnd, lockBlockEnd);
                     }
