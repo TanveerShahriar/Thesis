@@ -55,32 +55,36 @@ public:
 
     void run(const MatchFinder::MatchResult &Result) override {
         if (const FunctionDecl *Func = Result.Nodes.getNodeAs<FunctionDecl>("function")) {
-            if (Func->isImplicit() || !Func->isDefined() || Func->getNameAsString() == "main")
+            if (Func->isImplicit() || !Func->isDefined())
                 return;
-
+            
+            bool isMain = (Func->getNameAsString() == "main");
             CurrentFunction = Func;
-            // (1) Rewrite return type and function signature as you already do.
-            SourceLocation ReturnTypeStart = Func->getReturnTypeSourceRange().getBegin();
-            TheRewriter.ReplaceText(ReturnTypeStart, Func->getReturnType().getAsString().length(), "void");
 
-            if (auto FTL = Func->getTypeSourceInfo()->getTypeLoc().getAs<FunctionTypeLoc>()) {
-                SourceLocation LParenLoc = FTL.getLParenLoc();
-                SourceLocation RParenLoc = FTL.getRParenLoc();
-                if (LParenLoc.isValid() && RParenLoc.isValid() && LParenLoc < RParenLoc) {
-                    TheRewriter.ReplaceText(SourceRange(LParenLoc, RParenLoc),
-                                              "(int thread_idx, int param_index)");
+            if (!isMain){
+                // (1) Rewrite return type and function signature as you already do.
+                SourceLocation ReturnTypeStart = Func->getReturnTypeSourceRange().getBegin();
+                TheRewriter.ReplaceText(ReturnTypeStart, Func->getReturnType().getAsString().length(), "void");
+
+                if (auto FTL = Func->getTypeSourceInfo()->getTypeLoc().getAs<FunctionTypeLoc>()) {
+                    SourceLocation LParenLoc = FTL.getLParenLoc();
+                    SourceLocation RParenLoc = FTL.getRParenLoc();
+                    if (LParenLoc.isValid() && RParenLoc.isValid() && LParenLoc < RParenLoc) {
+                        TheRewriter.ReplaceText(SourceRange(LParenLoc, RParenLoc),
+                                                "(int thread_idx, int param_index)");
+                    }
                 }
-            }
 
-            // (2) Process return statements if needed.
-            if (!Func->getReturnType()->isVoidType()) {
-                if (const CompoundStmt *Body = dyn_cast<CompoundStmt>(Func->getBody())) {
-                    for (auto *Stmt : Body->body()) {
-                        if (const ReturnStmt *RetStmt = dyn_cast<ReturnStmt>(Stmt)) {
-                            SourceLocation RetStart = RetStmt->getBeginLoc();
-                            std::string ReturnReplacement = Func->getNameAsString() + "_params[param_index].return_var = ";
-                            TheRewriter.ReplaceText(SourceRange(RetStart, RetStart.getLocWithOffset(6)),
-                                                      ReturnReplacement);
+                // (2) Process return statements if needed.
+                if (!Func->getReturnType()->isVoidType()) {
+                    if (const CompoundStmt *Body = dyn_cast<CompoundStmt>(Func->getBody())) {
+                        for (auto *Stmt : Body->body()) {
+                            if (const ReturnStmt *RetStmt = dyn_cast<ReturnStmt>(Stmt)) {
+                                SourceLocation RetStart = RetStmt->getBeginLoc();
+                                std::string ReturnReplacement = Func->getNameAsString() + "_params[param_index].return_var = ";
+                                TheRewriter.ReplaceText(SourceRange(RetStart, RetStart.getLocWithOffset(6)),
+                                                        ReturnReplacement);
+                            }
                         }
                     }
                 }
@@ -102,7 +106,7 @@ public:
                     extraCode += callee + "_params_index_pool.push(index);\n";
                 }
                 // If the current function returns a value, mark it done.
-                if (!Func->getReturnType()->isVoidType()) {
+                if (!Func->getReturnType()->isVoidType() && !isMain) {
                     extraCode += Func->getNameAsString() + "_params[param_index]." + Func->getNameAsString() + "_done = true;\n";
                 }
                 TheRewriter.InsertTextBefore(InsertLoc, extraCode);
