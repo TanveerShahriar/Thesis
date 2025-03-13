@@ -10,6 +10,8 @@
 #include <fstream>
 #include <filesystem>
 
+#include "FunctionCollector.h"
+
 using namespace clang;
 using namespace clang::tooling;
 using namespace clang::ast_matchers;
@@ -291,6 +293,9 @@ int main(int argc, const char **argv) {
         fs::create_directories("output");
         std::ofstream outFile("output/struct.cpp");
         outFile.close();
+
+        FunctionCollector::getInstance().setSourceFile(argv[1]);
+        const std::set<std::string> &functions = FunctionCollector::getInstance().getCollectedFunctions();
 
         auto ExpectedParser = CommonOptionsParser::create(argc, argv, MyToolCategory);
         if (!ExpectedParser) {

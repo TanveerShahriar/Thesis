@@ -31,7 +31,7 @@ add_definitions(
     # Add the source files
     add_executable(CallGraphAnalyzer
     main.cpp
-    CallGraphAnalyzer.cpp
+    FunctionCollector.cpp
     )
     
 # Add the include directory to the specific target's compile options
