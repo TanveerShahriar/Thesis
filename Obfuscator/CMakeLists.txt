@@ -1,6 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(CallGraphAnalyzer)
-
+project(Obfuscator)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
 
@@ -22,24 +21,23 @@ add_definitions(
     -D__STDC_FORMAT_MACROS
     -D__STDC_LIMIT_MACROS
     )
-    
-    # Enable RTTI and exceptions
-    set(CMAKE_CXX_STANDARD 17)
-    set(CMAKE_CXX_STANDARD_REQUIRED ON)
-    add_compile_options(-frtti -fexceptions)
-    
-    # Add the source files
-    add_executable(CallGraphAnalyzer
+
+# Enable RTTI and exceptions
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+add_compile_options(-frtti -fexceptions)
+
+# Add the source files
+add_executable(Obfuscator
     obfuscator.cpp
     FunctionCollector.cpp
-    )
-    
-# Add the include directory to the specific target's compile options
-target_compile_options(CallGraphAnalyzer PRIVATE -I/usr/lib/gcc/x86_64-linux-gnu/11/include/)
+)
 
+# Add the include directory to the specific target's compile options
+target_compile_options(Obfuscator PRIVATE -I/usr/lib/gcc/x86_64-linux-gnu/11/include/)
 
 # Link Clang libraries
-target_link_libraries(CallGraphAnalyzer
+target_link_libraries(Obfuscator
     PRIVATE
     clangTooling
     clangAST
@@ -49,11 +47,11 @@ target_link_libraries(CallGraphAnalyzer
 )
 
 # Add LLVM and Clang definitions
-target_compile_definitions(CallGraphAnalyzer
+target_compile_definitions(Obfuscator
     PRIVATE
     ${LLVM_DEFINITIONS}
 )
 
 # Ensure the binary is built correctly
 llvm_map_components_to_libnames(llvm_libs support core irreader)
-target_link_libraries(CallGraphAnalyzer PRIVATE ${llvm_libs})
+target_link_libraries(Obfuscator PRIVATE ${llvm_libs})
