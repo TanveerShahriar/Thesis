@@ -159,6 +159,16 @@ public:
             argsString += argText.str();
         }
 
+        if (const FunctionDecl *Callee = CE->getDirectCallee()) {
+            for (unsigned i = 0; i < Callee->getNumParams(); ++i) {
+                const ParmVarDecl* paramDecl = Callee->getParamDecl(i);
+                QualType paramType = paramDecl->getType();
+                llvm::errs() << "Parameter " << i << " type: " 
+                            << paramType.getAsString() << "\n";
+            }
+        }
+
+
         std::string pushThreadStmt = "int index; \n { \n unique_lock<mutex> lock(mutexes[thread_idx]);\n if (" +
             functionName + "_params_index_pool.empty()){\n index = " + functionName +
             "_params.size();\n" + functionName + "_params.emplace_back();\n }\n else { \n index = " +
