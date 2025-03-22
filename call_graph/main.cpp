@@ -36,7 +36,7 @@ public:
             CurrentFunction = Func;
 
             if (!isMain){
-                // (1) Rewrite return type and function signature as you already do.
+                // (1) Rewrite return type and function signature
                 SourceLocation ReturnTypeStart = Func->getReturnTypeSourceRange().getBegin();
                 TheRewriter.ReplaceText(ReturnTypeStart, Func->getReturnType().getAsString().length(), "void");
 
@@ -90,7 +90,7 @@ public:
         if (!CurrentFunction)
             return true;
 
-        // (1) Existing action: Rewrite parameter references.
+        // (1) Rewrite parameter references.
         if (const ParmVarDecl *PVD = dyn_cast<ParmVarDecl>(DRE->getDecl())) {
             std::string functionName = CurrentFunction->getNameAsString();
             std::string paramName = PVD->getNameAsString();
