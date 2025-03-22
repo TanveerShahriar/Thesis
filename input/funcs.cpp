@@ -1,3 +1,8 @@
+#include <iostream>
+#include "func.h"
+
+using namespace std;
+
 int funcD(int a, int b){
     cout << "Start D " << endl;
 
