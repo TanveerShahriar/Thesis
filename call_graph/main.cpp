@@ -145,12 +145,9 @@ public:
         if (!CE->getDirectCallee())
             return true;
         const FunctionDecl *Callee = CE->getDirectCallee();
-        if (Callee->isImplicit() || Callee->getBuiltinID() != 0 || !Callee->doesThisDeclarationHaveABody())
-            return true;
 
         std::string functionName = Callee->getNameAsString();
-        if (functionName.find("operator") == 0)
-            return true;
+        if (functions.find(functionName) == functions.end()) return true;
 
         const SourceManager &SM1 = TheRewriter.getSourceMgr();
         std::string argsString;
