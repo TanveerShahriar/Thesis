@@ -11,7 +11,7 @@ build:
 
 # Run the CallGraphAnalyzer inside the build directory
 run: build
-	cd $(BUILD_DIR) && ./CallGraphAnalyzer ../../input/input.cpp
+	cd $(BUILD_DIR) && ./CallGraphAnalyzer ../../input/
 
 # Clean the build directory
 clean:

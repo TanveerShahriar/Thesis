@@ -257,7 +257,7 @@ static llvm::cl::OptionCategory MyToolCategory("my-tool options");
 int main(int argc, const char **argv) {
     if (argc > 1) {
         std::vector<std::string> cppFiles;
-        fs::path inputPath("../../input/");
+        fs::path inputPath(argv[1]);
 
         for (const auto &entry : fs::recursive_directory_iterator(inputPath)) {
             if (entry.is_regular_file() && entry.path().extension() == ".cpp") {
@@ -281,7 +281,7 @@ int main(int argc, const char **argv) {
         }
         CommonOptionsParser &OptionsParser = ExpectedParser.get();
 
-        ClangTool Tool(OptionsParser.getCompilations(), OptionsParser.getSourcePathList());
+        ClangTool Tool(OptionsParser.getCompilations(), cppFiles);
         return Tool.run(newFrontendActionFactory<FunctionFrontendAction>().get());
     }
     return 1;
