@@ -35,13 +35,13 @@ public:
             bool isMain = (Func->getNameAsString() == "main");
             CurrentFunction = Func;
 
+            std::string suffix;
             if (!isMain){
                 // (1) Rewrite return type and function signature
                 SourceLocation ReturnTypeStart = Func->getReturnTypeSourceRange().getBegin();
                 TheRewriter.ReplaceText(ReturnTypeStart, Func->getReturnType().getAsString().length(), "void");
 
                 std::string originalName = Func->getNameInfo().getName().getAsString();
-                std::string suffix;
 
                 for (unsigned i = 0; i < Func->getNumParams(); ++i) {
                     const ParmVarDecl *param = Func->getParamDecl(i);
@@ -69,7 +69,7 @@ public:
                         for (auto *Stmt : Body->body()) {
                             if (const ReturnStmt *RetStmt = dyn_cast<ReturnStmt>(Stmt)) {
                                 SourceLocation RetStart = RetStmt->getBeginLoc();
-                                std::string ReturnReplacement = Func->getNameAsString() + "_params[param_index].return_var = ";
+                                std::string ReturnReplacement = Func->getNameAsString() + suffix + "_params[param_index].return_var = ";
                                 TheRewriter.ReplaceText(SourceRange(RetStart, RetStart.getLocWithOffset(6)),
                                                         ReturnReplacement);
                             }
@@ -91,7 +91,7 @@ public:
                 }
                 // If the current function returns a value, mark it done.
                 if (!Func->getReturnType()->isVoidType() && !isMain) {
-                    extraCode += Func->getNameAsString() + "_params[param_index]." + Func->getNameAsString() + "_done = true;\n";
+                    extraCode += Func->getNameAsString() + suffix + "_params[param_index]." + Func->getNameAsString() + suffix + "_done = true;\n";
                 }
                 TheRewriter.InsertTextBefore(InsertLoc, extraCode);
             }
@@ -177,8 +177,7 @@ public:
             for (unsigned i = 0; i < Callee->getNumParams(); ++i) {
                 const ParmVarDecl* paramDecl = Callee->getParamDecl(i);
                 QualType paramType = paramDecl->getType();
-                llvm::errs() << "Parameter " << i << " type: " 
-                            << paramType.getAsString() << "\n";
+                functionName += paramType.getAsString()[0];
             }
         }
 
