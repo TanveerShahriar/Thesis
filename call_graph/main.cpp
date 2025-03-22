@@ -49,6 +49,8 @@ public:
                     if (!typeStr.empty()) suffix += typeStr[0];
                 }
 
+                currentSuffix = suffix;
+
                 std::string newName = originalName + suffix;
 
                 SourceLocation nameLoc = Func->getNameInfo().getBeginLoc();
@@ -108,7 +110,7 @@ public:
         if (const ParmVarDecl *PVD = dyn_cast<ParmVarDecl>(DRE->getDecl())) {
             std::string functionName = CurrentFunction->getNameAsString();
             std::string paramName = PVD->getNameAsString();
-            std::string replacement = functionName + "_params[param_index]." + paramName;
+            std::string replacement = functionName + currentSuffix + "_params[param_index]." + paramName;
             SourceLocation ParamLoc = DRE->getBeginLoc();
             TheRewriter.ReplaceText(ParamLoc, paramName.length(), replacement);
         }
@@ -181,7 +183,6 @@ public:
             }
         }
 
-
         std::string pushThreadStmt = "int index; \n { \n unique_lock<mutex> lock(mutexes[thread_idx]);\n if (" +
             functionName + "_params_index_pool.empty()){\n index = " + functionName +
             "_params.size();\n" + functionName + "_params.emplace_back();\n }\n else { \n index = " +
@@ -231,6 +232,7 @@ public:
 private:
     Rewriter &TheRewriter;
     const FunctionDecl *CurrentFunction;
+    std::string currentSuffix;
     std::vector<std::string> nonVoidCallees;
     std::set<unsigned> processedGlobalLines;
 };
