@@ -306,6 +306,11 @@ int main(int argc, const char **argv) {
             FunctionCollector::getInstance().collectFunctions(file);
         }
 
+        for (const auto &file : headerFiles) {
+            std::cout << "Processing file: " << file << std::endl;
+            FunctionCollector::getInstance().collectFunctions(file);
+        }
+
         std::cout << "Collected functions:\n";
         for (const auto &func : functions) {
             std::cout << " - " << func << "\n";
