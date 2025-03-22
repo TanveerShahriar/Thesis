@@ -40,6 +40,20 @@ public:
                 SourceLocation ReturnTypeStart = Func->getReturnTypeSourceRange().getBegin();
                 TheRewriter.ReplaceText(ReturnTypeStart, Func->getReturnType().getAsString().length(), "void");
 
+                std::string originalName = Func->getNameInfo().getName().getAsString();
+                std::string suffix;
+
+                for (unsigned i = 0; i < Func->getNumParams(); ++i) {
+                    const ParmVarDecl *param = Func->getParamDecl(i);
+                    std::string typeStr = param->getType().getAsString();
+                    if (!typeStr.empty()) suffix += typeStr[0];
+                }
+
+                std::string newName = originalName + suffix;
+
+                SourceLocation nameLoc = Func->getNameInfo().getBeginLoc();
+                TheRewriter.ReplaceText(nameLoc, originalName.length(), newName);
+
                 if (auto FTL = Func->getTypeSourceInfo()->getTypeLoc().getAs<FunctionTypeLoc>()) {
                     SourceLocation LParenLoc = FTL.getLParenLoc();
                     SourceLocation RParenLoc = FTL.getRParenLoc();
