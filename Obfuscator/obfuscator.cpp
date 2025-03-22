@@ -64,6 +64,12 @@ public:
                                                 "(int thread_idx, int param_index)");
                     }
                 }
+                
+                // Only process the body if it exists.
+                if (!Func->hasBody()) {
+                    CurrentFunction = nullptr;
+                    return;
+                }
 
                 // (2) Process return statements if needed.
                 if (!Func->getReturnType()->isVoidType()) {
@@ -281,12 +287,17 @@ static llvm::cl::OptionCategory MyToolCategory("my-tool options");
 
 int main(int argc, const char **argv) {
     if (argc > 1) {
-        std::vector<std::string> cppFiles;
+        std::vector<std::string> cppFiles, headerFiles;
         fs::path inputPath(argv[1]);
 
         for (const auto &entry : fs::recursive_directory_iterator(inputPath)) {
-            if (entry.is_regular_file() && entry.path().extension() == ".cpp") {
-                cppFiles.push_back(entry.path().string());
+            if (entry.is_regular_file()) {
+                auto ext = entry.path().extension().string();
+                if (ext == ".cpp") {
+                    cppFiles.push_back(entry.path().string());
+                } else if (ext == ".h" || ext == ".hpp") {
+                    headerFiles.push_back(entry.path().string());
+                }
             }
         }
 
@@ -312,8 +323,25 @@ int main(int argc, const char **argv) {
         }
         CommonOptionsParser &OptionsParser = ExpectedParser.get();
 
-        ClangTool Tool(OptionsParser.getCompilations(), cppFiles);
-        return Tool.run(newFrontendActionFactory<FunctionFrontendAction>().get());
+        ClangTool CppTool(OptionsParser.getCompilations(), cppFiles);
+        int result = CppTool.run(newFrontendActionFactory<FunctionFrontendAction>().get());
+        if (result != 0) {
+            std::cerr << "C++ file rewriting failed." << std::endl;
+            return result;
+        }
+
+        if (!headerFiles.empty()) {
+            std::cout << "Processing header files:\n";
+            for (const auto &file : headerFiles) {
+                std::cout << " - " << file << "\n";
+            }
+            ClangTool HeaderTool(OptionsParser.getCompilations(), headerFiles);
+            result = HeaderTool.run(newFrontendActionFactory<FunctionFrontendAction>().get());
+            if (result != 0) {
+                std::cerr << "Header file rewriting failed." << std::endl;
+                return result;
+            }
+        }
     }
     return 1;
 }
