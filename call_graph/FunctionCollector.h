@@ -19,6 +19,7 @@ public:
     void run(const MatchFinder::MatchResult &Result) override;
 
     const std::set<std::string> &getCollectedFunctions() const;
+    const std::set<std::string> &getCollectedFunctions_withMangling() const;
 
     void collectFunctions(const std::string &filePath);
 
@@ -27,6 +28,7 @@ private:
     void executeASTTraversal();
 
     std::set<std::string> userDefinedFunctions;
+    std::set<std::string> userDefinedFunctions_withMangling;
     std::string sourceFilePath;
 
     friend class ASTConsumerWithMatcher;

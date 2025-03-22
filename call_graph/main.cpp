@@ -299,6 +299,12 @@ int main(int argc, const char **argv) {
             std::cout << " - " << func << "\n";
         }
 
+        const std::set<std::string>& functions_withMangling = FunctionCollector::getInstance().getCollectedFunctions_withMangling();
+        std::cout << "Collected functions with mangling:\n";
+        for (const auto &func : functions_withMangling) {
+            std::cout << " - " << func << "\n";
+        }
+
         auto ExpectedParser = CommonOptionsParser::create(argc, argv, MyToolCategory);
         if (!ExpectedParser) {
             return 1;

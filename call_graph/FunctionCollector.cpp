@@ -48,6 +48,10 @@ const std::set<std::string> &FunctionCollector::getCollectedFunctions() const {
     return userDefinedFunctions;
 }
 
+const std::set<std::string> &FunctionCollector::getCollectedFunctions_withMangling() const {
+    return userDefinedFunctions_withMangling;
+}
+
 void FunctionCollector::run(const MatchFinder::MatchResult &Result) {
     if (const FunctionDecl *Func = Result.Nodes.getNodeAs<FunctionDecl>("function")) {
         if (Func->isThisDeclarationADefinition()) {
@@ -69,6 +73,8 @@ void FunctionCollector::run(const MatchFinder::MatchResult &Result) {
                 mangling += Param->getType().getAsString()[0];
                 outParams += "    " + Param->getType().getAsString() + " " + Param->getNameAsString() + ";\n";
             }
+
+            userDefinedFunctions_withMangling.insert(funcName + mangling);
 
             outFile << "struct " << funcName + mangling << "_Struct {\n";
             outFile << outParams;
