@@ -64,11 +64,14 @@ void FunctionCollector::run(const MatchFinder::MatchResult &Result) {
                 return;
             }
 
-            outFile << "struct " << funcName << "_Struct {\n";
+            std::string mangling, outParams;
             for (const ParmVarDecl *Param : Func->parameters()) {
-                outFile << "    " << Param->getType().getAsString() << " " 
-                        << Param->getNameAsString() << ";\n";
+                mangling += Param->getType().getAsString()[0];
+                outParams += "    " + Param->getType().getAsString() + " " + Param->getNameAsString() + ";\n";
             }
+
+            outFile << "struct " << funcName + mangling << "_Struct {\n";
+            outFile << outParams;
 
             if (!Func->getReturnType()->isVoidType()) {
                 outFile << "    " << Func->getReturnType().getAsString() << " return_var;\n";
@@ -83,7 +86,6 @@ void FunctionCollector::run(const MatchFinder::MatchResult &Result) {
 
 ASTConsumerWithMatcher::ASTConsumerWithMatcher(FunctionCollector &collector)
     : Collector(collector) {
-    // Register the matcher with our collector callback.
     Matcher.addMatcher(functionDecl(isExpansionInMainFile()).bind("function"), &Collector);
 }
 
