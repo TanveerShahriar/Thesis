@@ -1,5 +1,5 @@
 # Define subdirectory
-CALL_GRAPH_DIR := call_graph
+CALL_GRAPH_DIR := Obfuscator
 
 # Default target
 all:

@@ -30,7 +30,7 @@ add_definitions(
     
     # Add the source files
     add_executable(CallGraphAnalyzer
-    main.cpp
+    obfuscator.cpp
     FunctionCollector.cpp
     )
     
