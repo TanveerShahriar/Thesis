@@ -14,35 +14,41 @@ using namespace clang::ast_matchers;
 
 class FunctionCollector : public MatchFinder::MatchCallback {
 public:
-    static FunctionCollector &getInstance(); 
+    static FunctionCollector &getInstance();
 
     void run(const MatchFinder::MatchResult &Result) override;
+
     const std::set<std::string> &getCollectedFunctions() const;
-    
-    void setSourceFile(const std::string &filePath); 
+
+    void collectFunctions(const std::string &filePath);
 
 private:
-    FunctionCollector(); 
-    void executeASTTraversal(); 
+    FunctionCollector();
+    void executeASTTraversal();
 
     std::set<std::string> userDefinedFunctions;
-    std::string sourceFilePath; 
+    std::string sourceFilePath;
 
     friend class ASTConsumerWithMatcher;
 };
 
-class ASTConsumerWithMatcher : public ASTConsumer { 
+class ASTConsumerWithMatcher : public ASTConsumer {
 public:
+    explicit ASTConsumerWithMatcher(FunctionCollector &collector);
+    void HandleTranslationUnit(ASTContext &Context) override;
+
+private:
     FunctionCollector &Collector;
     MatchFinder Matcher;
-
-    ASTConsumerWithMatcher();
-    void HandleTranslationUnit(ASTContext &Context) override;
 };
 
 class MyFrontendAction : public ASTFrontendAction {
 public:
-    std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI, StringRef) override;
+    MyFrontendAction();
+    std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI, StringRef InFile) override;
+
+private:
+    FunctionCollector &Collector;
 };
 
 #endif

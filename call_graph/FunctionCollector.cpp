@@ -3,8 +3,11 @@
 #include <clang/Tooling/Tooling.h>
 #include <llvm/Support/CommandLine.h>
 #include <iostream>
+#include <fstream>
+#include <filesystem>
 
 using namespace clang::tooling;
+namespace fs = std::filesystem;
 
 static llvm::cl::OptionCategory MyToolCategory("my-tool options");
 
@@ -15,7 +18,7 @@ FunctionCollector &FunctionCollector::getInstance() {
 
 FunctionCollector::FunctionCollector() : sourceFilePath("") {}
 
-void FunctionCollector::setSourceFile(const std::string &filePath) {
+void FunctionCollector::collectFunctions(const std::string &filePath) {
     sourceFilePath = filePath;
     executeASTTraversal();
 }
@@ -31,14 +34,13 @@ void FunctionCollector::executeASTTraversal() {
 
     auto ExpectedParser = CommonOptionsParser::create(argc, argv, MyToolCategory);
     if (!ExpectedParser) {
+        std::cerr << "Error: Failed to create CommonOptionsParser.\n";
         return;
     }
 
     CommonOptionsParser &OptionsParser = ExpectedParser.get();
     ClangTool Tool(OptionsParser.getCompilations(), OptionsParser.getSourcePathList());
 
-    MatchFinder Matcher;
-    Matcher.addMatcher(functionDecl(isExpansionInMainFile()).bind("function"), this);
     Tool.run(newFrontendActionFactory<MyFrontendAction>().get());
 }
 
@@ -47,14 +49,41 @@ const std::set<std::string> &FunctionCollector::getCollectedFunctions() const {
 }
 
 void FunctionCollector::run(const MatchFinder::MatchResult &Result) {
-    if (const FunctionDecl *FD = Result.Nodes.getNodeAs<FunctionDecl>("function")) {
-        if (FD->isThisDeclarationADefinition()) {
-            userDefinedFunctions.insert(FD->getNameAsString());
+    if (const FunctionDecl *Func = Result.Nodes.getNodeAs<FunctionDecl>("function")) {
+        if (Func->isThisDeclarationADefinition()) {
+            std::string funcName = Func->getNameAsString();
+            userDefinedFunctions.insert(funcName);
+
+            if (funcName == "main")
+                return;
+
+            fs::create_directories("output");
+            std::ofstream outFile("output/struct.txt", std::ios::app);
+            if (!outFile.is_open()) {
+                std::cerr << "Error: Could not open output file.\n";
+                return;
+            }
+
+            outFile << "struct " << funcName << "_Struct {\n";
+            for (const ParmVarDecl *Param : Func->parameters()) {
+                outFile << "    " << Param->getType().getAsString() << " " 
+                        << Param->getNameAsString() << ";\n";
+            }
+
+            if (!Func->getReturnType()->isVoidType()) {
+                outFile << "    " << Func->getReturnType().getAsString() << " return_var;\n";
+                outFile << "    bool " << funcName << "_done = false;\n";
+            }
+
+            outFile << "};\n\n";
+            outFile.close();
         }
     }
 }
 
-ASTConsumerWithMatcher::ASTConsumerWithMatcher() : Collector(FunctionCollector::getInstance()) {
+ASTConsumerWithMatcher::ASTConsumerWithMatcher(FunctionCollector &collector)
+    : Collector(collector) {
+    // Register the matcher with our collector callback.
     Matcher.addMatcher(functionDecl(isExpansionInMainFile()).bind("function"), &Collector);
 }
 
@@ -62,6 +91,8 @@ void ASTConsumerWithMatcher::HandleTranslationUnit(ASTContext &Context) {
     Matcher.matchAST(Context);
 }
 
-std::unique_ptr<ASTConsumer> MyFrontendAction::CreateASTConsumer(CompilerInstance &CI, StringRef) {
-    return std::make_unique<ASTConsumerWithMatcher>();
+MyFrontendAction::MyFrontendAction() : Collector(FunctionCollector::getInstance()) {}
+
+std::unique_ptr<ASTConsumer> MyFrontendAction::CreateASTConsumer(CompilerInstance &CI, StringRef InFile) {
+    return std::make_unique<ASTConsumerWithMatcher>(Collector);
 }

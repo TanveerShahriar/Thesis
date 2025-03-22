@@ -7,49 +7,14 @@
 #include <clang/Tooling/CommonOptionsParser.h>
 #include <clang/Rewrite/Core/Rewriter.h>
 #include <llvm/Support/CommandLine.h>
-#include <fstream>
-#include <filesystem>
 
 #include "FunctionCollector.h"
+
+#include <iostream>
 
 using namespace clang;
 using namespace clang::tooling;
 using namespace clang::ast_matchers;
-namespace fs = std::filesystem;
-
-class FunctionStructDumper : public MatchFinder::MatchCallback {
-public:
-    FunctionStructDumper(const std::string &outputFile) : outputFile(outputFile) {}
-
-    void run(const MatchFinder::MatchResult &Result) override {
-        if (const FunctionDecl *Func = Result.Nodes.getNodeAs<FunctionDecl>("function")) {
-            if (Func->isImplicit() || !Func->isDefined() || Func->getNameAsString() == "main") {
-                return;
-            }
-
-            std::ofstream outFile(outputFile, std::ios::app);
-            if (!outFile.is_open()) {
-                return;
-            }
-
-            outFile << "struct " << Func->getNameAsString() << "_Struct {\n";
-            for (const ParmVarDecl *Param : Func->parameters()) {
-                outFile << "    " << Param->getType().getAsString() << " " << Param->getNameAsString() << ";\n";
-            }
-
-            if (!Func->getReturnType()->isVoidType()) {
-                outFile << "    " << Func->getReturnType().getAsString() << " return_var;\n";
-                outFile << "    bool " << Func->getNameAsString() << "_done = false;\n";
-            }
-
-            outFile << "};\n\n";
-            outFile.close();
-        }
-    }
-
-private:
-    std::string outputFile;
-};
 
 class FunctionRewriter : public MatchFinder::MatchCallback, public RecursiveASTVisitor<FunctionRewriter> {
 public:
@@ -246,9 +211,8 @@ private:
 
 class FunctionASTConsumer : public ASTConsumer {
 public:
-    FunctionASTConsumer(Rewriter &R, const std::string &outputFile)
-        : StructDumper(outputFile), FuncRewriter(R) {
-        Matcher.addMatcher(functionDecl(isExpansionInMainFile()).bind("function"), &StructDumper);
+    FunctionASTConsumer(Rewriter &R)
+        : FuncRewriter(R) {
         Matcher.addMatcher(functionDecl(isExpansionInMainFile()).bind("function"), &FuncRewriter);
     }
 
@@ -257,45 +221,36 @@ public:
     }
 
 private:
-    FunctionStructDumper StructDumper;
     FunctionRewriter FuncRewriter;
     MatchFinder Matcher;
 };
 
 class FunctionFrontendAction : public ASTFrontendAction {
 public:
-    FunctionFrontendAction() : outputFile("output/struct.cpp") {}
-
-    void EndSourceFileAction() override {
-        std::error_code EC;
-        llvm::raw_fd_ostream OutFile(SourceFilePath, EC, llvm::sys::fs::OF_Text);
-        if (!EC) {
-            TheRewriter.getEditBuffer(TheRewriter.getSourceMgr().getMainFileID()).write(OutFile);
-        }
-    }
+    FunctionFrontendAction() {}
 
     std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI, StringRef file) override {
         TheRewriter.setSourceMgr(CI.getSourceManager(), CI.getLangOpts());
         SourceFilePath = file.str();
-        return std::make_unique<FunctionASTConsumer>(TheRewriter, outputFile);
+        return std::make_unique<FunctionASTConsumer>(TheRewriter);
     }
 
 private:
     Rewriter TheRewriter;
     std::string SourceFilePath;
-    std::string outputFile;
 };
 
 static llvm::cl::OptionCategory MyToolCategory("my-tool options");
 
 int main(int argc, const char **argv) {
     if (argc > 1) {
-        fs::create_directories("output");
-        std::ofstream outFile("output/struct.cpp");
-        outFile.close();
-
-        FunctionCollector::getInstance().setSourceFile(argv[1]);
+        FunctionCollector::getInstance().collectFunctions(argv[1]);
         const std::set<std::string> &functions = FunctionCollector::getInstance().getCollectedFunctions();
+
+        std::cout << "Collected functions:\n";
+        for (const auto &func : functions) {
+            std::cout << " - " << func << "\n";
+        }
 
         auto ExpectedParser = CommonOptionsParser::create(argc, argv, MyToolCategory);
         if (!ExpectedParser) {
