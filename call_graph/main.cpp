@@ -11,10 +11,15 @@
 #include "FunctionCollector.h"
 
 #include <iostream>
+#include <filesystem>
+#include <vector>
+#include <string>
 
 using namespace clang;
 using namespace clang::tooling;
 using namespace clang::ast_matchers;
+
+namespace fs = std::filesystem;
 
 const std::set<std::string>& functions = FunctionCollector::getInstance().getCollectedFunctions();
 
@@ -254,7 +259,19 @@ static llvm::cl::OptionCategory MyToolCategory("my-tool options");
 
 int main(int argc, const char **argv) {
     if (argc > 1) {
-        FunctionCollector::getInstance().collectFunctions(argv[1]);
+        std::vector<std::string> cppFiles;
+        fs::path inputPath("../../input/");
+
+        for (const auto &entry : fs::recursive_directory_iterator(inputPath)) {
+            if (entry.is_regular_file() && entry.path().extension() == ".cpp") {
+                cppFiles.push_back(entry.path().string());
+            }
+        }
+
+        for (const auto &file : cppFiles) {
+            std::cout << "Processing file: " << file << std::endl;
+            FunctionCollector::getInstance().collectFunctions(file);
+        }
 
         std::cout << "Collected functions:\n";
         for (const auto &func : functions) {
