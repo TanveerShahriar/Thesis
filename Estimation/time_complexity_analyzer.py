@@ -2,7 +2,7 @@ import json
 from langchain_community.llms import LlamaCpp
 from langchain.output_parsers import StructuredOutputParser, ResponseSchema
 
-model_path = "DeepSeek-Coder-V2-Lite-Instruct-Q4_K_M.gguf"
+model_path = "./Model/DeepSeek-Coder-V2-Lite-Instruct-Q4_K_M.gguf"
 
 llm = LlamaCpp(
     model_path=model_path,
@@ -103,7 +103,6 @@ def analyze_time_complexity(cpp_function: str, report: str = "") -> tuple:
 
     try:
         response = llm(prompt)
-        # print("Response from LLM:", response)
     except Exception as e:
         print("Error generating response:", e)
         return False, str(e)
