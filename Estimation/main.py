@@ -1,4 +1,5 @@
 import os
+import time
 import clang.cindex
 from time_complexity_analyzer import analyze_time_complexity
 
@@ -128,15 +129,18 @@ def extract_all_functions_from_project(source_folder):
     return all_functions
 
 
-source_folder = "Source Code"
+source_folder = "../Input"
 functions = extract_all_functions_from_project(source_folder)
 limit = False
 
 for index, func in enumerate(functions):
     isSuccess = False
     count = 0
+    time_complexity = None
+    startingTime = time.time()
     while not isSuccess:
-        print(f"Analyzing function: {func.function_name}")
+        print(
+            f"Generating Complexity Attempt-[{count+1}]: {func.function_name}")
         isSuccess, time_complexity = analyze_time_complexity(
             str(func.function_body))
         count += 1
@@ -144,6 +148,9 @@ for index, func in enumerate(functions):
             count = 0
             isSuccess = False
             break
+    endingTime = time.time()
+    elapsedTime = endingTime - startingTime
+    print(f"Generation time: {elapsedTime:.2f} seconds")
     if isSuccess:
         func.setTimeComplexity(time_complexity)
     else:
@@ -152,7 +159,7 @@ for index, func in enumerate(functions):
     print(f"Time complexity: {func.getTimeComplexity()}")
     print(f"Total Statements: {func.getTotalStatements()}")
     print(
-        f"AI Analyzed: ======================================= [{index+1}/{len(functions)}] {(index+1) / len(functions) * 100:.2f}%")
+        f"AI Generated: ======================================= [{index+1}/{len(functions)}] {(index+1) / len(functions) * 100:.2f}%")
     if limit and index == 2:
         break
 
@@ -175,7 +182,7 @@ inline const std::unordered_map<std::string, std::string> cppFunctionsMap = {
     header_content += '};\n\n'
     header_content += '#endif // CPP_FUNCTIONS_H\n'
 
-    output_folder = "OUTPUT"
+    output_folder = "../Obfuscator"
     os.makedirs(output_folder, exist_ok=True)
     output_file_path = os.path.join(output_folder, "cpp_functions.h")
     with open(output_file_path, "w", encoding="utf-8") as header_file:

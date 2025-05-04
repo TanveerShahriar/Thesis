@@ -26,9 +26,8 @@ The **Time Complexity Analyzer** is a Python-based tool designed to analyze C++ 
 
 
 ### AI Model
-
-* Download the AI model file:  **`DeepSeek-Coder-V2-Lite-Instruct-Q4_K_M.gguf`** .
-* Place the model file in the same directory as the Python scripts.
+* Download the AI model file: [**`DeepSeek-Coder-V2-Lite-Instruct-Q4_K_M.gguf`**](https://drive.google.com/file/d/1ZUctuyrFevrbpi8tZheIAV_S7k_tEJLK/view?usp=sharing).
+* Place the model file in the Model directory as the Python scripts.
 
 ### Dependencies
 
@@ -42,7 +41,7 @@ Install the required Python libraries by running:
 
 ### 1. Prepare the Source Code
 
-* Place your C++ source code files in a folder named **`Source Code`** in the root directory of the project.
+* Place your C++ source code files in a folder named **`Input`** in the root directory of the project.
 * Supported file extensions: `.cpp`, `.cc`, `.cxx`, `.c`, `.h`.
 
 ### 2. Run the Analyzer
@@ -54,7 +53,7 @@ Install the required Python libraries by running:
 ### 3. Output
 
 * The analyzed results will be saved in a C++ header file named  **`cpp_functions.h`** .
-* The output file will be generated in the **`OUTPUT`** folder in the root directory.
+* The output file will be generated in the **`Obfuscator`** folder in the root directory.
 
 ---
 
@@ -88,9 +87,25 @@ inline const std::unordered_map<std::string, std::string> cppFunctionsMap = {
 ## Folder Structure
 
 Thesis/
-├── Ai/
+├── .gitignore
+├── docker-compose.yml
+├── Dockerfile
+├── makefile
+├── Readme.md
+├── Estimation/
+│   ├── .gitignore
 │   ├── main.py
+│   ├── Readme.md
 │   ├── time_complexity_analyzer.py
-│   ├── DeepSeek-Coder-V2-Lite-Instruct-Q4_K_M.gguf
-│   ├── Source Code/  # Place your C++ source files here
-│   └── OUTPUT/       # Generated output file will be saved here
+│   ├── Model/
+│   │   └── DeepSeek-Coder-V2-Lite-Instruct-Q4_K_M.gguf
+├── Input/
+│   ├── funcs.cpp
+│   └── input.cpp
+├── Obfuscator/
+│   ├── CMakeLists.txt
+│   ├── FunctionCollector.cpp
+│   ├── FunctionCollector.h
+│   ├── makefile
+│   ├── obfuscator.cpp
+│   └── cpp_functions.h  # Generated output file
