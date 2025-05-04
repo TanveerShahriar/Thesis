@@ -5,11 +5,12 @@ from time_complexity_analyzer import analyze_time_complexity
 
 
 class FunctionInfo:
-    def __init__(self, function_name, function_body):
+    def __init__(self, function_name, function_body, params=""):
         self.function_name: str = function_name
         self.function_body: str = function_body
         self.time_complexity: str = None
         self.total_statement: int = 0
+        self.function_name_with_params: str = params
 
     def setTimeComplexity(self, time_complexity):
         self.time_complexity = time_complexity
@@ -22,6 +23,12 @@ class FunctionInfo:
 
     def getTotalStatements(self):
         return self.total_statement
+
+    def setFunctionNameWithParams(self, params):
+        self.function_name_with_params = params
+
+    def getFunctionNameWithParams(self):
+        return self.function_name_with_params
 
 
 def extract_functions_from_source(file_path):
@@ -74,6 +81,15 @@ def extract_functions_from_source(file_path):
             extent = node.extent
             function_code = get_source_code(extent.start, extent.end)
             func_info = FunctionInfo(node.spelling, function_code.strip())
+
+            param_types = []
+            for param in node.get_arguments():
+                param_type = param.type.spelling.split()[-1]
+                param_types.append(param_type[0])
+            params_suffix = ''.join(param_types)
+            func_info.setFunctionNameWithParams(
+                f"{node.spelling}{f'_{params_suffix}' if params_suffix else ''}"
+            )
 
             try:
                 total_statements = count_statements(node)
@@ -133,23 +149,31 @@ source_folder = "../Input"
 functions = extract_all_functions_from_project(source_folder)
 limit = False
 
+total_elapsed_time = 0  # Track total elapsed time for average calculation
+
 for index, func in enumerate(functions):
     isSuccess = False
     count = 0
     time_complexity = None
     startingTime = time.time()
+    max_attempts = 5
     while not isSuccess:
         print(
-            f"Generating Complexity Attempt-[{count+1}]: {func.function_name}")
+            f"Generating Complexity Attempt-[{count+1}/{max_attempts}]: {func.function_name}")
         isSuccess, time_complexity = analyze_time_complexity(
             str(func.function_body))
         count += 1
-        if count > 5:
+        if count > max_attempts:
             count = 0
             isSuccess = False
             break
     endingTime = time.time()
     elapsedTime = endingTime - startingTime
+    total_elapsed_time += elapsedTime
+    avg_time_per_function = total_elapsed_time / (index + 1)
+    remaining_functions = len(functions) - (index + 1)
+    approx_eta = avg_time_per_function * remaining_functions
+
     print(f"Generation time: {elapsedTime:.2f} seconds")
     if isSuccess:
         func.setTimeComplexity(time_complexity)
@@ -159,28 +183,49 @@ for index, func in enumerate(functions):
     print(f"Time complexity: {func.getTimeComplexity()}")
     print(f"Total Statements: {func.getTotalStatements()}")
     print(
-        f"AI Generated: ======================================= [{index+1}/{len(functions)}] {(index+1) / len(functions) * 100:.2f}%")
+        f"======================================= [{index+1}/{len(functions)}] {(index+1) / len(functions) * 100:.2f}% | ETA: {approx_eta:.2f} seconds =======================================")
     if limit and index == 2:
         break
 
+print("\nAll Function Names with Params:")
+for func in functions:
+    print(func.getFunctionNameWithParams())
 
-def saveAsCppHashmap(functions):
+
+def saveAsCppFile(functions):
     header_content = '''\
 #ifndef CPP_FUNCTIONS_H
 #define CPP_FUNCTIONS_H
 
 #include <unordered_map>
+#include <unordered_set>
 #include <string>
 
-// Inline global hashmap mapping function names to their time complexities.
 inline const std::unordered_map<std::string, std::string> cppFunctionsMap = {
 '''
+    unique_functions = {}
+    function_names_set = set()
     for func in functions:
-        complexity = func.getTimeComplexity(
-        ) if func.getTimeComplexity() is not None else func.getTotalStatements()
-        header_content += f'    {{"{func.function_name}", "{complexity}"}},\n'
+        key = func.getFunctionNameWithParams()
+        if key not in unique_functions:
+            complexity = func.getTimeComplexity() if func.getTimeComplexity(
+            ) is not None else func.getTotalStatements()
+            unique_functions[key] = complexity
+        function_names_set.add(func.function_name)
+
+    for key, complexity in unique_functions.items():
+        header_content += f'    {{"{key}", "{complexity}"}},\n'
+
+    header_content += '''\
+};
+
+inline const std::unordered_set<std::string> cppFunctionNamesSet = {
+'''
+    for name in function_names_set:
+        header_content += f'    "{name}",\n'
+
     header_content += '};\n\n'
-    header_content += '#endif // CPP_FUNCTIONS_H\n'
+    header_content += '#endif\n'
 
     output_folder = "../Obfuscator"
     os.makedirs(output_folder, exist_ok=True)
@@ -191,4 +236,4 @@ inline const std::unordered_map<std::string, std::string> cppFunctionsMap = {
     print("C++ header file 'cpp_functions.h' has been generated.")
 
 
-saveAsCppHashmap(functions)
+saveAsCppFile(functions)
