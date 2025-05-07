@@ -18,6 +18,15 @@ class ConsoleColors:
     UNDERLINE = '\033[4m'
 
 
+class Parameter:
+    def __init__(self, name, type):
+        self.name: str = name
+        self.type: str = type
+
+    def __repr__(self):
+        return f"{self.type} {self.name}"
+
+
 class FunctionInfo:
     def __init__(self, function_name, function_body, params=""):
         self.function_name: str = function_name
@@ -25,6 +34,8 @@ class FunctionInfo:
         self.time_complexity: str = None
         self.total_statement: int = 0
         self.function_name_with_params: str = params
+        self.params: list[Parameter] = []
+        self.return_type: str = None
 
     def setTimeComplexity(self, time_complexity):
         self.time_complexity = time_complexity
@@ -45,7 +56,7 @@ class FunctionInfo:
         return self.function_name_with_params
 
     def __repr__(self):
-        return self.function_name_with_params
+        return f"{self.function_name_with_params}({', '.join(map(str, self.params))}) -> {self.return_type}"
 
 
 def extract_functions_from_source(file_path):
@@ -98,6 +109,14 @@ def extract_functions_from_source(file_path):
             extent = node.extent
             function_code = get_source_code(extent.start, extent.end)
             func_info = FunctionInfo(node.spelling, function_code.strip())
+
+            for param in node.get_arguments():
+                param_name = param.spelling
+                param_type = param.type.spelling
+                func_info.params.append(Parameter(param_name, param_type))
+
+            return_type = node.result_type.spelling
+            func_info.return_type = None if return_type == "void" else return_type
 
             param_types = []
             for param in node.get_arguments():
@@ -272,7 +291,293 @@ inline const std::unordered_set<std::string> cppFunctionNamesSet = {
         header_file.write(header_content)
 
     print(f"{ConsoleColors.OKGREEN}C++ header file saved successfully at {output_file_path}{ConsoleColors.ENDC}")
-    print(f"{ConsoleColors.OKCYAN}Total functions: {len(functions)}{ConsoleColors.ENDC}")
 
 
 saveAsCppFile(functions)
+
+
+def saveObfuscatorHppFile(functions):
+    print(f"{ConsoleColors.OKCYAN}Saving Obfuscator header file...{ConsoleColors.ENDC}")
+    header_content = '''\
+#ifndef OBFUSCATOR_H
+#define OBFUSCATOR_H
+
+#include <queue>
+#include <atomic>
+#include <mutex>
+#include <condition_variable>
+#include <vector>
+#include <random>
+#include <thread>
+
+using namespace std;
+
+constexpr int OBFUSCATION_THREADS = 2;
+
+enum FunctionID
+{
+'''
+    for index, func in enumerate(functions):
+        header_content += f'    {func.getFunctionNameWithParams().upper()},\n'
+    header_content += '''\
+};
+'''
+    for func in functions:
+        header_content += '''
+struct'''
+        header_content += f' {func.getFunctionNameWithParams()}_values\n'
+        header_content += '''\
+{
+'''
+        for param in func.params:
+            header_content += f'    {param.type} {param.name};\n'
+        if func.return_type:
+            header_content += f'    {func.return_type} {func.getFunctionNameWithParams()}_return;\n'
+        header_content += f'    bool {func.getFunctionNameWithParams()}_done;\n'
+        header_content += '''\
+};
+
+'''
+
+    for func in functions:
+        header_content += f'''\
+extern queue<int> {func.getFunctionNameWithParams()}_params_index_pool;
+'''
+    header_content += f'''\
+
+'''
+    for func in functions:
+        header_content += f'''\
+extern vector<{func.getFunctionNameWithParams()}_values> {func.getFunctionNameWithParams()}_params;
+'''
+    header_content += f'''\
+
+extern thread threads[OBFUSCATION_THREADS];
+extern queue<pair<int, int>> queues[OBFUSCATION_THREADS];
+extern mutex mutexes[OBFUSCATION_THREADS];
+extern condition_variable conditions[OBFUSCATION_THREADS];
+
+extern bool stopThreads;
+extern mutex stopMutex;
+
+extern atomic<int> g_inFlightTasks;
+extern condition_variable g_allTasksDoneCV;
+extern mutex g_allTasksDoneMtx;
+
+extern std::atomic<int> *vec;
+
+void initialize();
+void exit();
+void taskFinished();
+int getBalancedRandomIndex();
+void pushToThread(int funcId, int line_no, int param_index);
+void execute(int thread_idx);
+void threadFunction(int thread_idx);
+
+'''
+    for func in functions:
+        header_content += f'''\
+void {func.getFunctionNameWithParams()}(int thread_idx, int param_index);
+'''
+
+    header_content += '\n#endif\n'
+    output_folder = "../Input"
+    os.makedirs(output_folder, exist_ok=True)
+    output_file_path = os.path.join(output_folder, "obfuscator.hpp")
+    with open(output_file_path, "w", encoding="utf-8") as header_file:
+        header_file.write(header_content)
+
+    print(f"{ConsoleColors.OKGREEN}Obfuscator header file saved successfully at {output_file_path}{ConsoleColors.ENDC}")
+
+
+saveObfuscatorHppFile(functions)
+
+
+def saveObfuscatorCppFile(functions):
+    print(f"{ConsoleColors.OKCYAN}Saving Obfuscator cpp file...{ConsoleColors.ENDC}")
+    header_content = '''\
+#include <algorithm>
+#include "obfuscator.hpp"
+
+thread threads[OBFUSCATION_THREADS];
+
+queue<pair<int, int>> queues[OBFUSCATION_THREADS];
+mutex mutexes[OBFUSCATION_THREADS];
+condition_variable conditions[OBFUSCATION_THREADS];
+
+bool stopThreads = false;
+mutex stopMutex;
+
+atomic<int> g_inFlightTasks{0};
+condition_variable g_allTasksDoneCV;
+mutex g_allTasksDoneMtx;
+
+'''
+    for func in functions:
+        header_content += f'''\
+queue<int> {func.getFunctionNameWithParams()}_params_index_pool;
+'''
+    header_content += f'''\
+
+'''
+    for func in functions:
+        header_content += f'''\
+vector<{func.getFunctionNameWithParams()}_values> {func.getFunctionNameWithParams()}_params;
+'''
+    header_content += '''\
+
+std::atomic<int> *vec;
+
+std::random_device rd;
+std::mt19937 rng(rd());
+
+void initialize()
+{
+    vec = new std::atomic<int>[OBFUSCATION_THREADS];
+    for (int i = 0; i < OBFUSCATION_THREADS; i++)
+    {
+        vec[i].store(0);
+    }
+
+    for (int i = 0; i < OBFUSCATION_THREADS; i++)
+    {
+        threads[i] = thread(threadFunction, i);
+    }
+}
+
+void exit()
+{
+    unique_lock<mutex> lock(g_allTasksDoneMtx);
+    g_allTasksDoneCV.wait(lock, []
+                          { return g_inFlightTasks.load() == 0; });
+
+    {
+        lock_guard<mutex> stopLock(stopMutex);
+        stopThreads = true;
+    }
+
+    for (int i = 0; i < OBFUSCATION_THREADS; i++)
+    {
+        conditions[i].notify_all();
+        threads[i].join();
+    }
+}
+
+int getBalancedRandomIndex()
+{
+    double sum = 0;
+    std::vector<int> values(OBFUSCATION_THREADS);
+
+    for (int i = 0; i < OBFUSCATION_THREADS; i++)
+    {
+        values[i] = vec[i].load();
+        sum += values[i];
+    }
+
+    double avg = sum / OBFUSCATION_THREADS;
+    double threshold = avg * 0.8;
+
+    std::vector<int> candidateIndices;
+
+    for (int i = 0; i < OBFUSCATION_THREADS; i++)
+    {
+        if (values[i] <= threshold)
+        {
+            candidateIndices.push_back(i);
+        }
+    }
+
+    if (candidateIndices.empty())
+    {
+        std::vector<int> sortedValues = values;
+        std::sort(sortedValues.begin(), sortedValues.end());
+        int median = sortedValues[OBFUSCATION_THREADS / 2];
+
+        for (int i = 0; i < OBFUSCATION_THREADS; i++)
+        {
+            if (values[i] <= median)
+            {
+                candidateIndices.push_back(i);
+            }
+        }
+    }
+
+    std::uniform_int_distribution<int> dist(0, candidateIndices.size() - 1);
+    return candidateIndices[dist(rng)];
+}
+
+void pushToThread(int funcId, int line_no, int param_index)
+{
+    int thread_idx = getBalancedRandomIndex();
+    {
+        lock_guard<mutex> lock(mutexes[thread_idx]);
+        queues[thread_idx].emplace(funcId, param_index);
+        vec[thread_idx].fetch_add(line_no);
+        g_inFlightTasks++;
+    }
+    conditions[thread_idx].notify_one();
+}
+
+void taskFinished()
+{
+    int remaining = --g_inFlightTasks;
+    if (remaining == 0)
+    {
+        unique_lock<mutex> lock(g_allTasksDoneMtx);
+        g_allTasksDoneCV.notify_all();
+    }
+}
+
+void execute(int thread_idx)
+{
+    if (queues[thread_idx].empty())
+        return;
+
+    pair<int, int> func_info;
+    {
+        lock_guard<mutex> lock(mutexes[thread_idx]);
+        func_info = queues[thread_idx].front();
+        queues[thread_idx].pop();
+    }
+
+    switch (func_info.first)
+    {
+'''
+    for func in functions:
+        header_content += f'    case {func.getFunctionNameWithParams().upper()}:\n'
+        header_content += f'        {func.getFunctionNameWithParams()}(thread_idx, func_info.second);\n'
+        header_content += '        break;\n'
+    header_content += '''\
+    }
+
+    taskFinished();
+}
+
+void threadFunction(int thread_idx)
+{
+    while (true)
+    {
+        {
+            unique_lock<mutex> lock(mutexes[thread_idx]);
+            conditions[thread_idx].wait(lock, [&]
+                                        { return !queues[thread_idx].empty() || stopThreads; });
+        }
+
+        if (stopThreads && queues[thread_idx].empty())
+            break;
+        execute(thread_idx);
+    }
+}
+'''
+
+    header_content += '\n'
+    output_folder = "../Input"
+    os.makedirs(output_folder, exist_ok=True)
+    output_file_path = os.path.join(output_folder, "obfuscator.cpp")
+    with open(output_file_path, "w", encoding="utf-8") as header_file:
+        header_file.write(header_content)
+
+    print(f"{ConsoleColors.OKGREEN}Obfuscator cpp file saved successfully at {output_file_path}{ConsoleColors.ENDC}")
+
+
+saveObfuscatorCppFile(functions)

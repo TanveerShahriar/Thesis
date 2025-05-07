@@ -4,3 +4,7 @@ Obfuscator/cpp_functions.h
 Obfuscator/main.cpp
 Obfuscator/main.exe
 .vscode/
+Input/obfuscator.hpp
+Input/obfuscator.cpp
+Estimation/obfuscator.hpp
+Estimation/obfuscator.cpp
