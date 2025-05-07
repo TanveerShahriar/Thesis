@@ -3,6 +3,20 @@ import time
 import clang.cindex
 from time_complexity_analyzer import analyze_time_complexity
 
+MAX_ATTEMPTS = 5
+
+
+class ConsoleColors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKCYAN = '\033[96m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+
 
 class FunctionInfo:
     def __init__(self, function_name, function_body, params=""):
@@ -28,6 +42,9 @@ class FunctionInfo:
         self.function_name_with_params = params
 
     def getFunctionNameWithParams(self):
+        return self.function_name_with_params
+
+    def __repr__(self):
         return self.function_name_with_params
 
 
@@ -132,15 +149,32 @@ def count_statements(node):
     return statement_count
 
 
-def extract_all_functions_from_project(source_folder):
-    """Recursively walk through the source_folder and extract functions from .c, .cpp, and header files."""
-    all_functions = []
+def total_cpp_file_count(source_folder):
+    """Count the number of .c, .cpp, and header files in the source_folder."""
+    count = 0
     for root, dirs, files in os.walk(source_folder):
         for file in files:
             if file.endswith(('.cpp', '.cc', '.cxx', '.c', '.h')):
+                count += 1
+    return count
+
+
+def extract_all_functions_from_project(source_folder):
+    """Recursively walk through the source_folder and extract functions from .c, .cpp, and header files."""
+    all_functions = []
+    total_files = total_cpp_file_count(source_folder)
+    cpp_files_count = 0
+    for root, dirs, files in os.walk(source_folder):
+        for file in files:
+            if file.endswith(('.cpp', '.cc', '.cxx', '.c', '.h')):
+                cpp_files_count += 1
                 file_path = os.path.join(root, file)
-                print(f"Analyzing file: {file_path}")
+                currentTime = time.time()
+                print(
+                    f"{ConsoleColors.OKCYAN}[{cpp_files_count}/{total_files}][{time.strftime('%H:%M:%S', time.localtime(currentTime))}] Analyzing file: {file_path}{ConsoleColors.ENDC}", end="")
                 functions = extract_functions_from_source(file_path)
+                print(
+                    f" {ConsoleColors.OKGREEN}====== Found [{len(functions)}] ====== Total [{len(all_functions) + len(functions)}]{ConsoleColors.ENDC}")
                 all_functions.extend(functions)
     return all_functions
 
@@ -149,21 +183,23 @@ source_folder = "../Input"
 functions = extract_all_functions_from_project(source_folder)
 limit = False
 
-total_elapsed_time = 0  # Track total elapsed time for average calculation
+total_elapsed_time = 0
 
 for index, func in enumerate(functions):
     isSuccess = False
     count = 0
     time_complexity = None
     startingTime = time.time()
-    max_attempts = 5
+    report = ""
     while not isSuccess:
         print(
-            f"Generating Complexity Attempt-[{count+1}/{max_attempts}]: {func.function_name}")
+            f"{ConsoleColors.OKBLUE}Generating Complexity Attempt-[{count+1}/{MAX_ATTEMPTS}]: {func.function_name}{ConsoleColors.ENDC}")
         isSuccess, time_complexity = analyze_time_complexity(
-            str(func.function_body))
+            str(func.function_body), report=report)
         count += 1
-        if count > max_attempts:
+        if not isSuccess:
+            report += f"Attempt {count}: {time_complexity}\n"
+        if count >= MAX_ATTEMPTS:
             count = 0
             isSuccess = False
             break
@@ -174,25 +210,25 @@ for index, func in enumerate(functions):
     remaining_functions = len(functions) - (index + 1)
     approx_eta = avg_time_per_function * remaining_functions
 
-    print(f"Generation time: {elapsedTime:.2f} seconds")
+    print(f"{ConsoleColors.OKCYAN}Generation time: {elapsedTime:.2f} seconds{ConsoleColors.ENDC}")
     if isSuccess:
         func.setTimeComplexity(time_complexity)
+        print(
+            f"{ConsoleColors.OKGREEN}Time complexity: {func.getTimeComplexity()}{ConsoleColors.ENDC}")
     else:
-        print("Failed to analyze time complexity, using default value.")
+        print(f"{ConsoleColors.FAIL}Failed to analyze time complexity, using default value.{ConsoleColors.ENDC}")
         func.setTimeComplexity(str(func.getTotalStatements()))
-    print(f"Time complexity: {func.getTimeComplexity()}")
-    print(f"Total Statements: {func.getTotalStatements()}")
+    print(f"{ConsoleColors.OKCYAN}Total Statements: {func.getTotalStatements()}{ConsoleColors.ENDC}")
+    eta_hours, eta_remainder = divmod(approx_eta, 3600)
+    eta_minutes, eta_seconds = divmod(eta_remainder, 60)
     print(
-        f"======================================= [{index+1}/{len(functions)}] {(index+1) / len(functions) * 100:.2f}% | ETA: {approx_eta:.2f} seconds =======================================")
+        f"{ConsoleColors.HEADER}======================================= [{index+1}/{len(functions)}] {(index+1) / len(functions) * 100:.2f}% | ETA: {int(eta_hours):02}:{int(eta_minutes):02}:{int(eta_seconds):02} ======================================={ConsoleColors.ENDC}")
     if limit and index == 2:
         break
 
-print("\nAll Function Names with Params:")
-for func in functions:
-    print(func.getFunctionNameWithParams())
-
 
 def saveAsCppFile(functions):
+    print(f"{ConsoleColors.OKCYAN}Saving C++ header file...{ConsoleColors.ENDC}")
     header_content = '''\
 #ifndef CPP_FUNCTIONS_H
 #define CPP_FUNCTIONS_H
@@ -203,6 +239,7 @@ def saveAsCppFile(functions):
 
 inline const std::unordered_map<std::string, std::string> cppFunctionsMap = {
 '''
+    print(f"{ConsoleColors.OKCYAN}Generating HashMap...{ConsoleColors.ENDC}")
     unique_functions = {}
     function_names_set = set()
     for func in functions:
@@ -221,6 +258,7 @@ inline const std::unordered_map<std::string, std::string> cppFunctionsMap = {
 
 inline const std::unordered_set<std::string> cppFunctionNamesSet = {
 '''
+    print(f"{ConsoleColors.OKCYAN}Generating HashSet...{ConsoleColors.ENDC}")
     for name in function_names_set:
         header_content += f'    "{name}",\n'
 
@@ -233,7 +271,8 @@ inline const std::unordered_set<std::string> cppFunctionNamesSet = {
     with open(output_file_path, "w", encoding="utf-8") as header_file:
         header_file.write(header_content)
 
-    print("C++ header file 'cpp_functions.h' has been generated.")
+    print(f"{ConsoleColors.OKGREEN}C++ header file saved successfully at {output_file_path}{ConsoleColors.ENDC}")
+    print(f"{ConsoleColors.OKCYAN}Total functions: {len(functions)}{ConsoleColors.ENDC}")
 
 
 saveAsCppFile(functions)
