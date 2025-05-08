@@ -6,7 +6,7 @@ model_path = "./Model/DeepSeek-Coder-V2-Lite-Instruct-Q4_K_M.gguf"
 
 llm = LlamaCpp(
     model_path=model_path,
-    n_ctx=131072,
+    n_ctx=13107,
     n_gpu_layers=20,
     verbose=False,
     temperature=0.0
