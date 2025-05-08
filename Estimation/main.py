@@ -317,8 +317,8 @@ constexpr int OBFUSCATION_THREADS = 2;
 enum FunctionID
 {
 '''
-    for index, func in enumerate(functions):
-        header_content += f'    {func.getFunctionNameWithParams().upper()},\n'
+    for func in functions:
+        header_content += f'    {func.getFunctionNameWithParams()}_enumidx,\n'
     header_content += '''\
 };
 '''
@@ -544,7 +544,7 @@ void execute(int thread_idx)
     {
 '''
     for func in functions:
-        header_content += f'    case {func.getFunctionNameWithParams().upper()}:\n'
+        header_content += f'    case {func.getFunctionNameWithParams()}_enumidx:\n'
         header_content += f'        {func.getFunctionNameWithParams()}(thread_idx, func_info.second);\n'
         header_content += '        break;\n'
     header_content += '''\
