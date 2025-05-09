@@ -28,10 +28,48 @@ public:
     void run(const MatchFinder::MatchResult &Result) override {
         if (const FunctionDecl *Func = Result.Nodes.getNodeAs<FunctionDecl>("function")) {
             CurrentFunction = Func;
-            if ((Func->getNameAsString() == "main")){
+            if ((Func->getNameAsString() == "main")) {
+                if (const CompoundStmt *Body = dyn_cast<CompoundStmt>(Func->getBody())) {
+                    std::string mainStartCode = R"(
+                thread threads[OBFUSCATION_THREADS];
+                initialize();
+
+                for (int i = 0; i < OBFUSCATION_THREADS; i++) {
+                    threads[i] = thread(threadFunction, i);
+                }
+                )";
+
+                    SourceLocation lBraceLoc = Body->getLBracLoc().getLocWithOffset(1);
+                    TheRewriter.InsertText(lBraceLoc, mainStartCode, true, true);
+
+                    std::string mainEndCode = R"(
+                unique_lock<mutex> lock(g_allTasksDoneMtx);
+                g_allTasksDoneCV.wait(lock, []{ return g_inFlightTasks.load() == 0; });
+
+                {
+                    lock_guard<mutex> stopLock(stopMutex);
+                    stopThreads = true;
+                }
+
+                for (int i = 0; i < OBFUSCATION_THREADS; i++) {
+                    conditions[i].notify_all();
+                    threads[i].join();
+                }
+                )";
+
+                    for (auto it = Body->body_begin(); it != Body->body_end(); ++it) {
+                        if (const ReturnStmt *Ret = dyn_cast<ReturnStmt>(*it)) {
+                            SourceLocation retLoc = Ret->getBeginLoc();
+                            TheRewriter.InsertTextBefore(retLoc, mainEndCode);
+                            break;
+                        }
+                    }
+                }
+
                 nonVoidCallees.clear();
                 TraverseDecl(const_cast<FunctionDecl *>(Func));
             }
+
             
             if (cppFunctionNamesSet.find(Func->getNameAsString()) == cppFunctionNamesSet.end())
                 return;
