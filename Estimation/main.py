@@ -332,7 +332,7 @@ struct'''
         for param in func.params:
             header_content += f'    {param.type} {param.name};\n'
         if func.return_type:
-            header_content += f'    {func.return_type} {func.getFunctionNameWithParams()}_return;\n'
+            header_content += f'    int return_var;\n'
         header_content += f'    bool {func.getFunctionNameWithParams()}_done;\n'
         header_content += '''\
 };

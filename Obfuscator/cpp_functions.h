@@ -14,11 +14,11 @@ inline const std::unordered_map<std::string, std::string> cppFunctionsMap = {
 };
 
 inline const std::unordered_set<std::string> cppFunctionNamesSet = {
-    "funcA",
-    "funcE",
     "funcC",
     "funcB",
     "funcD",
+    "funcA",
+    "funcE",
 };
 
 #endif
