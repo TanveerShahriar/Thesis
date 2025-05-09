@@ -293,6 +293,10 @@ int main(int argc, const char **argv) {
         for (const auto &entry : fs::recursive_directory_iterator(inputPath)) {
             if (entry.is_regular_file()) {
                 auto ext = entry.path().extension().string();
+                auto filename = entry.path().filename().string();
+
+                if (filename == "obfuscator.cpp" || filename == "obfuscator.hpp") continue;
+
                 if (ext == ".cpp") {
                     cppFiles.push_back(entry.path().string());
                 } else if (ext == ".h" || ext == ".hpp") {
