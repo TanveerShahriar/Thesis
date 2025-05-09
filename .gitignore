@@ -1,6 +1,5 @@
 build/
 output/
-Obfuscator/cpp_functions.h
 Obfuscator/main.cpp
 Obfuscator/main.exe
 .vscode/
