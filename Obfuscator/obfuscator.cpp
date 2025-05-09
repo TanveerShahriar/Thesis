@@ -196,8 +196,11 @@ public:
             }
         }
 
-        std::string pushThreadStmt = "int index; \n { \n unique_lock<mutex> lock(mutexes[thread_idx]);\n if (" +
-            functionName + "_params_index_pool.empty()){\n index = " + functionName +
+        std::string pushThreadStmt = "int index; \n { \n";
+
+        if (CurrentFunction->getNameAsString() != "main") pushThreadStmt += "unique_lock<mutex> lock(mutexes[thread_idx]);\n";
+        
+        pushThreadStmt += "if (" + functionName + "_params_index_pool.empty()){\n index = " + functionName +
             "_params.size();\n" + functionName + "_params.emplace_back();\n }\n else { \n index = " +
             functionName + "_params_index_pool.front(); \n" + functionName + "_params_index_pool.pop(); \n }\n" +
             functionName + "_params[index] = {" + argsString + "};\n }\n" +
@@ -208,10 +211,6 @@ public:
                 "_done) {\n if(!queues[thread_idx].empty()) execute(thread_idx); \n} \n";
             // Record the callee name so that later we add the push statement
             nonVoidCallees.push_back(functionName);
-        }
-
-        if (CurrentFunction->getNameAsString() == "main") {
-            pushThreadStmt = "pushToThread(" + functionName + "_enumidx," + cppFunctionsMap.at(functionName) + ", index);\n";
         }
 
         SourceRange callRange = CE->getSourceRange();
