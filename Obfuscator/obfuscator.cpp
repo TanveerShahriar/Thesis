@@ -8,7 +8,7 @@
 #include <clang/Rewrite/Core/Rewriter.h>
 #include <llvm/Support/CommandLine.h>
 
-#include "FunctionCollector.h"
+#include "cpp_functions.h"
 
 #include <iostream>
 #include <filesystem>
@@ -21,15 +21,13 @@ using namespace clang::ast_matchers;
 
 namespace fs = std::filesystem;
 
-const std::set<std::string>& functions = FunctionCollector::getInstance().getCollectedFunctions();
-
 class FunctionRewriter : public MatchFinder::MatchCallback, public RecursiveASTVisitor<FunctionRewriter> {
 public:
     FunctionRewriter(Rewriter &R) : TheRewriter(R), CurrentFunction(nullptr) {}
 
     void run(const MatchFinder::MatchResult &Result) override {
         if (const FunctionDecl *Func = Result.Nodes.getNodeAs<FunctionDecl>("function")) {
-            if (functions.find(Func->getNameAsString()) == functions.end())
+            if (cppFunctionNamesSet.find(Func->getNameAsString()) == cppFunctionNamesSet.end())
                 return;
             
             bool isMain = (Func->getNameAsString() == "main");
@@ -169,7 +167,7 @@ public:
         const FunctionDecl *Callee = CE->getDirectCallee();
 
         std::string functionName = Callee->getNameAsString();
-        if (functions.find(functionName) == functions.end()) return true;
+        if (cppFunctionNamesSet.find(functionName) == cppFunctionNamesSet.end()) return true;
 
         const SourceManager &SM1 = TheRewriter.getSourceMgr();
         std::string argsString;
@@ -303,27 +301,6 @@ int main(int argc, const char **argv) {
                     headerFiles.push_back(entry.path().string());
                 }
             }
-        }
-
-        for (const auto &file : cppFiles) {
-            std::cout << "Processing file: " << file << std::endl;
-            FunctionCollector::getInstance().collectFunctions(file);
-        }
-
-        for (const auto &file : headerFiles) {
-            std::cout << "Processing file: " << file << std::endl;
-            FunctionCollector::getInstance().collectFunctions(file);
-        }
-
-        std::cout << "Collected functions:\n";
-        for (const auto &func : functions) {
-            std::cout << " - " << func << "\n";
-        }
-
-        const std::set<std::string>& functions_withMangling = FunctionCollector::getInstance().getCollectedFunctions_withMangling();
-        std::cout << "Collected functions with mangling:\n";
-        for (const auto &func : functions_withMangling) {
-            std::cout << " - " << func << "\n";
         }
 
         auto ExpectedParser = CommonOptionsParser::create(argc, argv, MyToolCategory);
