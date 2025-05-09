@@ -49,7 +49,7 @@ public:
 
                 currentSuffix = suffix;
 
-                std::string newName = originalName + suffix;
+                std::string newName = suffix.empty() ? originalName : originalName + "_" + suffix;
 
                 SourceLocation nameLoc = Func->getNameInfo().getBeginLoc();
                 TheRewriter.ReplaceText(nameLoc, originalName.length(), newName);
