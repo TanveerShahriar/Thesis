@@ -266,22 +266,30 @@ public:
     FunctionFrontendAction() {}
 
     void EndSourceFileAction() override {
+        SourceManager &SM = TheRewriter.getSourceMgr();
+        FileID MainFileID = SM.getMainFileID();
+        SourceLocation StartLoc = SM.getLocForStartOfFile(MainFileID);
+
+        if(IsCppFile) TheRewriter.InsertText(StartLoc, "#include \"obfuscator.hpp\"\n", true, true);
+
         std::error_code EC;
         llvm::raw_fd_ostream OutFile(SourceFilePath, EC, llvm::sys::fs::OF_Text);
         if (!EC) {
-            TheRewriter.getEditBuffer(TheRewriter.getSourceMgr().getMainFileID()).write(OutFile);
+            TheRewriter.getEditBuffer(MainFileID).write(OutFile);
         }
     }
 
     std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI, StringRef file) override {
         TheRewriter.setSourceMgr(CI.getSourceManager(), CI.getLangOpts());
         SourceFilePath = file.str();
+        IsCppFile = fs::path(SourceFilePath).extension() == ".cpp";
         return std::make_unique<FunctionASTConsumer>(TheRewriter);
     }
 
 private:
     Rewriter TheRewriter;
     std::string SourceFilePath;
+    bool IsCppFile;
 };
 
 static llvm::cl::OptionCategory MyToolCategory("my-tool options");
