@@ -34,6 +34,7 @@ public:
             CurrentFunction = Func;
 
             std::string suffix;
+            std::string newName;
             if (!isMain){
                 // (1) Rewrite return type and function signature
                 SourceLocation ReturnTypeStart = Func->getReturnTypeSourceRange().getBegin();
@@ -49,7 +50,7 @@ public:
 
                 currentSuffix = suffix;
 
-                std::string newName = suffix.empty() ? originalName : originalName + "_" + suffix;
+                newName = suffix.empty() ? originalName : originalName + "_" + suffix;
 
                 SourceLocation nameLoc = Func->getNameInfo().getBeginLoc();
                 TheRewriter.ReplaceText(nameLoc, originalName.length(), newName);
@@ -97,8 +98,9 @@ public:
                 }
                 // If the current function returns a value, mark it done.
                 if (!Func->getReturnType()->isVoidType() && !isMain) {
-                    extraCode += Func->getNameAsString() + suffix + "_params[param_index]." + Func->getNameAsString() + suffix + "_done = true;\n";
+                    extraCode += newName + "_params[param_index]." + Func->getNameAsString() + suffix + "_done = true;\n";
                 }
+                extraCode += "vec[thread_idx].fetch_sub(" + cppFunctionsMap.at(newName) + ");";
                 TheRewriter.InsertTextBefore(InsertLoc, extraCode);
             }
 
@@ -192,8 +194,8 @@ public:
             functionName + "_params_index_pool.empty()){\n index = " + functionName +
             "_params.size();\n" + functionName + "_params.emplace_back();\n }\n else { \n index = " +
             functionName + "_params_index_pool.front(); \n" + functionName + "_params_index_pool.pop(); \n }\n" +
-            functionName + "_params[index] = {" + argsString + "};\n }\n int estimation = " + cppFunctionsMap.at(functionName) +
-            "; \n pushToThread(" + functionName + "_enumidx, estimation, index);\n";
+            functionName + "_params[index] = {" + argsString + "};\n }\n" +
+            "; \n pushToThread(" + functionName + "_enumidx," + cppFunctionsMap.at(functionName) + ", index);\n";
 
         if (!Callee->getReturnType()->isVoidType()) {
             pushThreadStmt += "while (!" + functionName + "_params[index]." + functionName +
