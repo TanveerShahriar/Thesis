@@ -76,7 +76,7 @@ public:
                         for (auto *Stmt : Body->body()) {
                             if (const ReturnStmt *RetStmt = dyn_cast<ReturnStmt>(Stmt)) {
                                 SourceLocation RetStart = RetStmt->getBeginLoc();
-                                std::string ReturnReplacement = newName + "_params[param_index].return = ";
+                                std::string ReturnReplacement = newName + "_params[param_index].return_var = ";
                                 TheRewriter.ReplaceText(SourceRange(RetStart, RetStart.getLocWithOffset(6)),
                                                         ReturnReplacement);
                             }

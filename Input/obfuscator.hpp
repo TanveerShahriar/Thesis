@@ -26,7 +26,7 @@ struct funcD_ii_values
 {
     int a;
     int b;
-    int funcD_ii_return;
+    int return_var;
     bool funcD_ii_done;
 };
 
@@ -41,7 +41,7 @@ struct funcE_ii_values
 {
     int a;
     int b;
-    int funcE_ii_return;
+    int return_var;
     bool funcE_ii_done;
 };
 
