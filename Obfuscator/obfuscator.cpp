@@ -76,7 +76,7 @@ public:
                         for (auto *Stmt : Body->body()) {
                             if (const ReturnStmt *RetStmt = dyn_cast<ReturnStmt>(Stmt)) {
                                 SourceLocation RetStart = RetStmt->getBeginLoc();
-                                std::string ReturnReplacement = newName + "_params[param_index].return_var = ";
+                                std::string ReturnReplacement = newName + "_params[param_index].return = ";
                                 TheRewriter.ReplaceText(SourceRange(RetStart, RetStart.getLocWithOffset(6)),
                                                         ReturnReplacement);
                             }
@@ -116,7 +116,8 @@ public:
         if (const ParmVarDecl *PVD = dyn_cast<ParmVarDecl>(DRE->getDecl())) {
             std::string functionName = CurrentFunction->getNameAsString();
             std::string paramName = PVD->getNameAsString();
-            std::string replacement = functionName + currentSuffix + "_params[param_index]." + paramName;
+            std::string replacement = functionName + (currentSuffix.empty() ? "" : "_" + currentSuffix) +"_params[param_index]." + paramName;
+
             SourceLocation ParamLoc = DRE->getBeginLoc();
             TheRewriter.ReplaceText(ParamLoc, paramName.length(), replacement);
         }
