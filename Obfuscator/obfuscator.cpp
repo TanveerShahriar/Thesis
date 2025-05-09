@@ -221,7 +221,7 @@ public:
         TheRewriter.InsertTextBefore(lineStart, pushThreadStmt);
 
         if (!Callee->getReturnType()->isVoidType()) {
-            std::string returnReplacement = functionName + "_params[index]." + functionName + "_return";
+            std::string returnReplacement = functionName + "_params[index].return_var";
             TheRewriter.ReplaceText(charRange, returnReplacement);
         } else {
             SourceLocation callEnd = CE->getEndLoc();
