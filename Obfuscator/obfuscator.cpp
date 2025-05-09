@@ -76,7 +76,7 @@ public:
                         for (auto *Stmt : Body->body()) {
                             if (const ReturnStmt *RetStmt = dyn_cast<ReturnStmt>(Stmt)) {
                                 SourceLocation RetStart = RetStmt->getBeginLoc();
-                                std::string ReturnReplacement = Func->getNameAsString() + suffix + "_params[param_index].return_var = ";
+                                std::string ReturnReplacement = newName + "_params[param_index].return_var = ";
                                 TheRewriter.ReplaceText(SourceRange(RetStart, RetStart.getLocWithOffset(6)),
                                                         ReturnReplacement);
                             }
@@ -98,7 +98,7 @@ public:
                 }
                 // If the current function returns a value, mark it done.
                 if (!Func->getReturnType()->isVoidType() && !isMain) {
-                    extraCode += newName + "_params[param_index]." + Func->getNameAsString() + suffix + "_done = true;\n";
+                    extraCode += newName + "_params[param_index]." + newName + "_done = true;\n";
                 }
                 extraCode += "vec[thread_idx].fetch_sub(" + cppFunctionsMap.at(newName) + ");";
                 TheRewriter.InsertTextBefore(InsertLoc, extraCode);
