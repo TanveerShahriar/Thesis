@@ -27,6 +27,11 @@ public:
 
     void run(const MatchFinder::MatchResult &Result) override {
         if (const FunctionDecl *Func = Result.Nodes.getNodeAs<FunctionDecl>("function")) {
+            if ((Func->getNameAsString() == "main")){
+                nonVoidCallees.clear();
+                TraverseDecl(const_cast<FunctionDecl *>(Func));
+            }
+            
             if (cppFunctionNamesSet.find(Func->getNameAsString()) == cppFunctionNamesSet.end())
                 return;
             
