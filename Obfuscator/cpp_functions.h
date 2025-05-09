@@ -9,7 +9,7 @@ inline const std::unordered_map<std::string, std::string> cppFunctionsMap = {
     {"funcD_ii", "4"},
     {"funcB", "2 + 1 + 2 + 1"},
     {"funcE_ii", "3"},
-    {"funcC", "2*a + 3"},
+    {"funcC", "2 + 3"},
     {"funcA", "4"},
 };
 

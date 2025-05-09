@@ -180,6 +180,7 @@ public:
         }
 
         if (const FunctionDecl *Callee = CE->getDirectCallee()) {
+            if (Callee->getNumParams() > 0) functionName += "_";
             for (unsigned i = 0; i < Callee->getNumParams(); ++i) {
                 const ParmVarDecl* paramDecl = Callee->getParamDecl(i);
                 QualType paramType = paramDecl->getType();
@@ -191,8 +192,8 @@ public:
             functionName + "_params_index_pool.empty()){\n index = " + functionName +
             "_params.size();\n" + functionName + "_params.emplace_back();\n }\n else { \n index = " +
             functionName + "_params_index_pool.front(); \n" + functionName + "_params_index_pool.pop(); \n }\n" +
-            functionName + "_params[index] = {" + argsString + "};\n }\n" +
-            "pushToThread(" + functionName + "_enumidx);\n";
+            functionName + "_params[index] = {" + argsString + "};\n }\n int estimation = " + cppFunctionsMap.at(functionName) +
+            "; \n pushToThread(" + functionName + "_enumidx, estimation, index);\n";
 
         if (!Callee->getReturnType()->isVoidType()) {
             pushThreadStmt += "while (!" + functionName + "_params[index]." + functionName +
