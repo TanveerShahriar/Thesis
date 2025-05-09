@@ -27,6 +27,7 @@ public:
 
     void run(const MatchFinder::MatchResult &Result) override {
         if (const FunctionDecl *Func = Result.Nodes.getNodeAs<FunctionDecl>("function")) {
+            CurrentFunction = Func;
             if ((Func->getNameAsString() == "main")){
                 nonVoidCallees.clear();
                 TraverseDecl(const_cast<FunctionDecl *>(Func));
@@ -36,7 +37,6 @@ public:
                 return;
             
             bool isMain = (Func->getNameAsString() == "main");
-            CurrentFunction = Func;
 
             std::string suffix;
             std::string newName;
@@ -208,6 +208,10 @@ public:
                 "_done) {\n if(!queues[thread_idx].empty()) execute(thread_idx); \n} \n";
             // Record the callee name so that later we add the push statement
             nonVoidCallees.push_back(functionName);
+        }
+
+        if (CurrentFunction->getNameAsString() == "main") {
+            pushThreadStmt = "pushToThread(" + functionName + "_enumidx," + cppFunctionsMap.at(functionName) + ", index);\n";
         }
 
         SourceRange callRange = CE->getSourceRange();
