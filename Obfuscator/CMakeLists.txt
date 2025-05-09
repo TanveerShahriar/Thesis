@@ -30,7 +30,6 @@ add_compile_options(-frtti -fexceptions)
 # Add the source files
 add_executable(Obfuscator
     obfuscator.cpp
-    FunctionCollector.cpp
 )
 
 # Add the include directory to the specific target's compile options
