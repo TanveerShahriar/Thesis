@@ -105,7 +105,11 @@ def extract_functions_from_source(file_path):
             node.kind == clang.cindex.CursorKind.FUNCTION_DECL and
             node.semantic_parent.kind == clang.cindex.CursorKind.TRANSLATION_UNIT
         )
-        if is_top_level_function and is_user_file and node.is_definition() and node.spelling != "main":
+        is_namespace_function = (
+            node.kind == clang.cindex.CursorKind.FUNCTION_DECL and
+            node.semantic_parent.kind == clang.cindex.CursorKind.NAMESPACE
+        )
+        if (is_top_level_function or is_namespace_function) and is_user_file and node.is_definition() and node.spelling != "main":
             extent = node.extent
             function_code = get_source_code(extent.start, extent.end)
             func_info = FunctionInfo(node.spelling, function_code.strip())
@@ -255,22 +259,24 @@ def saveAsCppFile(functions):
 #include <unordered_map>
 #include <unordered_set>
 #include <string>
+#include <utility>
 
-inline const std::unordered_map<std::string, std::string> cppFunctionsMap = {
+inline const std::unordered_map<std::string, std::pair<std::string, int>> cppFunctionsMap = {
 '''
-    print(f"{ConsoleColors.OKCYAN}Generating HashMap...{ConsoleColors.ENDC}")
+    print(f"{ConsoleColors.OKCYAN}Generating HashMap with pairs...{ConsoleColors.ENDC}")
+
     unique_functions = {}
     function_names_set = set()
     for func in functions:
         key = func.getFunctionNameWithParams()
+        tc = func.getTimeComplexity() or str(func.getTotalStatements())
+        ts = func.getTotalStatements()
         if key not in unique_functions:
-            complexity = func.getTimeComplexity() if func.getTimeComplexity(
-            ) is not None else func.getTotalStatements()
-            unique_functions[key] = complexity
+            unique_functions[key] = (tc, ts)
         function_names_set.add(func.function_name)
 
-    for key, complexity in unique_functions.items():
-        header_content += f'    {{"{key}", "{complexity}"}},\n'
+    for key, (complexity, stmt_count) in unique_functions.items():
+        header_content += f'    {{"{key}", std::make_pair("{complexity}", {stmt_count})}},\n'
 
     header_content += '''\
 };
