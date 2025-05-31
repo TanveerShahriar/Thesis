@@ -26,7 +26,7 @@ The **Time Complexity Analyzer** is a Python-based tool designed to analyze C++ 
 
 
 ### AI Model
-* Download the AI model file: [**`DeepSeek-Coder-V2-Lite-Instruct-Q4_K_M.gguf`**](https://drive.google.com/file/d/1ZUctuyrFevrbpi8tZheIAV_S7k_tEJLK/view?usp=sharing).
+* Download the AI model file: [**`DeepSeek-Coder-V2-Lite-Instruct-Q4_K_M.gguf`**](https://drive.google.com/file/d/1B6e-l6FLLNyFQzNW9k0_i2j9Y1yZvxZK/view?usp=sharing).
 * Place the model file in the Model directory as the Python scripts.
 
 ### Dependencies
