@@ -259,24 +259,22 @@ def saveAsCppFile(functions):
 #include <unordered_map>
 #include <unordered_set>
 #include <string>
-#include <utility>
 
-inline const std::unordered_map<std::string, std::pair<std::string, int>> cppFunctionsMap = {
+inline const std::unordered_map<std::string, std::string> cppFunctionsMap = {
 '''
-    print(f"{ConsoleColors.OKCYAN}Generating HashMap with pairs...{ConsoleColors.ENDC}")
-
+    print(f"{ConsoleColors.OKCYAN}Generating HashMap...{ConsoleColors.ENDC}")
     unique_functions = {}
     function_names_set = set()
     for func in functions:
         key = func.getFunctionNameWithParams()
-        tc = func.getTimeComplexity() or str(func.getTotalStatements())
-        ts = func.getTotalStatements()
         if key not in unique_functions:
-            unique_functions[key] = (tc, ts)
+            complexity = func.getTimeComplexity() if func.getTimeComplexity(
+            ) is not None else func.getTotalStatements()
+            unique_functions[key] = complexity
         function_names_set.add(func.function_name)
 
-    for key, (complexity, stmt_count) in unique_functions.items():
-        header_content += f'    {{"{key}", std::make_pair("{complexity}", {stmt_count})}},\n'
+    for key, complexity in unique_functions.items():
+        header_content += f'    {{"{key}", "{complexity}"}},\n'
 
     header_content += '''\
 };
