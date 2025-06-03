@@ -1,0 +1,6 @@
+libclang==14.0.6
+langchain==0.1.5
+langchain-community==0.0.13
+pydantic==2.5.2
+setuptools>=65.5.1
+wheel>=0.38.0

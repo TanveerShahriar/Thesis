@@ -4,6 +4,7 @@ import clang.cindex
 from time_complexity_analyzer import analyze_time_complexity
 
 MAX_ATTEMPTS = 5
+SHOW_LOGS = True  # Set to False to disable logging
 
 
 class ConsoleColors:
@@ -124,7 +125,7 @@ def extract_functions_from_source(file_path):
 
             param_types = []
             for param in node.get_arguments():
-                param_type = param.type.spelling.split()[-1]
+                param_type = param.type.spelling.split()[0]
                 param_types.append(param_type[0])
             params_suffix = ''.join(param_types)
             func_info.setFunctionNameWithParams(
@@ -194,10 +195,10 @@ def extract_all_functions_from_project(source_folder):
                 file_path = os.path.join(root, file)
                 currentTime = time.time()
                 print(
-                    f"{ConsoleColors.OKCYAN}[{cpp_files_count}/{total_files}][{time.strftime('%H:%M:%S', time.localtime(currentTime))}] Analyzing file: {file_path}{ConsoleColors.ENDC}", end="")
+                    f"{ConsoleColors.OKCYAN}[{cpp_files_count}/{total_files}][{time.strftime('%H:%M:%S', time.localtime(currentTime))}] Analyzing file: {file_path}{ConsoleColors.ENDC}", end="") if SHOW_LOGS else None
                 functions = extract_functions_from_source(file_path)
                 print(
-                    f" {ConsoleColors.OKGREEN}====== Found [{len(functions)}] ====== Total [{len(all_functions) + len(functions)}]{ConsoleColors.ENDC}")
+                    f" {ConsoleColors.OKGREEN}====== Found [{len(functions)}] ====== Total [{len(all_functions) + len(functions)}]{ConsoleColors.ENDC}") if SHOW_LOGS else None
                 all_functions.extend(functions)
     return all_functions
 
@@ -216,7 +217,7 @@ for index, func in enumerate(functions):
     report = ""
     while not isSuccess:
         print(
-            f"{ConsoleColors.OKBLUE}Generating Complexity Attempt-[{count+1}/{MAX_ATTEMPTS}]: {func.function_name}{ConsoleColors.ENDC}")
+            f"{ConsoleColors.OKBLUE}Generating Complexity Attempt-[{count+1}/{MAX_ATTEMPTS}]: {func.function_name}{ConsoleColors.ENDC}") if SHOW_LOGS else None
         isSuccess, time_complexity = analyze_time_complexity(
             str(func.function_body), report=report)
         count += 1
@@ -233,25 +234,25 @@ for index, func in enumerate(functions):
     remaining_functions = len(functions) - (index + 1)
     approx_eta = avg_time_per_function * remaining_functions
 
-    print(f"{ConsoleColors.OKCYAN}Generation time: {elapsedTime:.2f} seconds{ConsoleColors.ENDC}")
+    print(f"{ConsoleColors.OKCYAN}Generation time: {elapsedTime:.2f} seconds{ConsoleColors.ENDC}") if SHOW_LOGS else None
     if isSuccess:
         func.setTimeComplexity(time_complexity)
         print(
-            f"{ConsoleColors.OKGREEN}Time complexity: {func.getTimeComplexity()}{ConsoleColors.ENDC}")
+            f"{ConsoleColors.OKGREEN}Time complexity: {func.getTimeComplexity()}{ConsoleColors.ENDC}") if SHOW_LOGS else None
     else:
-        print(f"{ConsoleColors.FAIL}Failed to analyze time complexity, using default value.{ConsoleColors.ENDC}")
+        print(f"{ConsoleColors.FAIL}Failed to analyze time complexity, using default value.{ConsoleColors.ENDC}") if SHOW_LOGS else None
         func.setTimeComplexity(str(func.getTotalStatements()))
-    print(f"{ConsoleColors.OKCYAN}Total Statements: {func.getTotalStatements()}{ConsoleColors.ENDC}")
+    print(f"{ConsoleColors.OKCYAN}Total Statements: {func.getTotalStatements()}{ConsoleColors.ENDC}") if SHOW_LOGS else None
     eta_hours, eta_remainder = divmod(approx_eta, 3600)
     eta_minutes, eta_seconds = divmod(eta_remainder, 60)
     print(
-        f"{ConsoleColors.HEADER}======================================= [{index+1}/{len(functions)}] {(index+1) / len(functions) * 100:.2f}% | ETA: {int(eta_hours):02}:{int(eta_minutes):02}:{int(eta_seconds):02} ======================================={ConsoleColors.ENDC}")
+        f"{ConsoleColors.HEADER}======================================= [{index+1}/{len(functions)}] {(index+1) / len(functions) * 100:.2f}% | ETA: {int(eta_hours):02}:{int(eta_minutes):02}:{int(eta_seconds):02} ======================================={ConsoleColors.ENDC}") if SHOW_LOGS else None
     if limit and index == 2:
         break
 
 
 def saveAsCppFile(functions):
-    print(f"{ConsoleColors.OKCYAN}Saving C++ header file...{ConsoleColors.ENDC}")
+    print(f"{ConsoleColors.OKCYAN}Saving C++ header file...{ConsoleColors.ENDC}") if SHOW_LOGS else None
     header_content = '''\
 #ifndef CPP_FUNCTIONS_H
 #define CPP_FUNCTIONS_H
@@ -262,7 +263,7 @@ def saveAsCppFile(functions):
 
 inline const std::unordered_map<std::string, std::string> cppFunctionsMap = {
 '''
-    print(f"{ConsoleColors.OKCYAN}Generating HashMap...{ConsoleColors.ENDC}")
+    print(f"{ConsoleColors.OKCYAN}Generating HashMap...{ConsoleColors.ENDC}") if SHOW_LOGS else None
     unique_functions = {}
     function_names_set = set()
     for func in functions:
@@ -281,7 +282,7 @@ inline const std::unordered_map<std::string, std::string> cppFunctionsMap = {
 
 inline const std::unordered_set<std::string> cppFunctionNamesSet = {
 '''
-    print(f"{ConsoleColors.OKCYAN}Generating HashSet...{ConsoleColors.ENDC}")
+    print(f"{ConsoleColors.OKCYAN}Generating HashSet...{ConsoleColors.ENDC}") if SHOW_LOGS else None
     for name in function_names_set:
         header_content += f'    "{name}",\n'
 
@@ -294,14 +295,14 @@ inline const std::unordered_set<std::string> cppFunctionNamesSet = {
     with open(output_file_path, "w", encoding="utf-8") as header_file:
         header_file.write(header_content)
 
-    print(f"{ConsoleColors.OKGREEN}C++ header file saved successfully at {output_file_path}{ConsoleColors.ENDC}")
+    print(f"{ConsoleColors.OKGREEN}C++ header file saved successfully at {output_file_path}{ConsoleColors.ENDC}") if SHOW_LOGS else None
 
 
 saveAsCppFile(functions)
 
 
 def saveObfuscatorHppFile(functions):
-    print(f"{ConsoleColors.OKCYAN}Saving Obfuscator header file...{ConsoleColors.ENDC}")
+    print(f"{ConsoleColors.OKCYAN}Saving Obfuscator header file...{ConsoleColors.ENDC}") if SHOW_LOGS else None
     header_content = '''\
 #ifndef OBFUSCATOR_H
 #define OBFUSCATOR_H
@@ -391,14 +392,14 @@ void {func.getFunctionNameWithParams()}(int thread_idx, int param_index);
     with open(output_file_path, "w", encoding="utf-8") as header_file:
         header_file.write(header_content)
 
-    print(f"{ConsoleColors.OKGREEN}Obfuscator header file saved successfully at {output_file_path}{ConsoleColors.ENDC}")
+    print(f"{ConsoleColors.OKGREEN}Obfuscator header file saved successfully at {output_file_path}{ConsoleColors.ENDC}") if SHOW_LOGS else None
 
 
 saveObfuscatorHppFile(functions)
 
 
 def saveObfuscatorCppFile(functions):
-    print(f"{ConsoleColors.OKCYAN}Saving Obfuscator cpp file...{ConsoleColors.ENDC}")
+    print(f"{ConsoleColors.OKCYAN}Saving Obfuscator cpp file...{ConsoleColors.ENDC}") if SHOW_LOGS else None
     header_content = '''\
 #include <algorithm>
 #include "obfuscator.hpp"
@@ -581,7 +582,7 @@ void threadFunction(int thread_idx)
     with open(output_file_path, "w", encoding="utf-8") as header_file:
         header_file.write(header_content)
 
-    print(f"{ConsoleColors.OKGREEN}Obfuscator cpp file saved successfully at {output_file_path}{ConsoleColors.ENDC}")
+    print(f"{ConsoleColors.OKGREEN}Obfuscator cpp file saved successfully at {output_file_path}{ConsoleColors.ENDC}") if SHOW_LOGS else None
 
 
 saveObfuscatorCppFile(functions)

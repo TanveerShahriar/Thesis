@@ -57,55 +57,9 @@ Install the required Python libraries by running:
 
 ---
 
-## Output File Structure
-
-The generated `cpp_functions.h` file will contain a global hashmap mapping function names to their time complexities. Example:
-
-
-#ifndef CPP_FUNCTIONS_H
-#define CPP_FUNCTIONS_H
-
-#include <unordered_map>
-#include `<string>`
-
-// Inline global hashmap mapping function names to their time complexities.
-inline const std::unordered_map<std::string, std::string> cppFunctionsMap = {
-    {"Function1", "n*n"},
-    {"Function2", "1000*1000"},
-    {"Function3", "2"},
-};
-
-#endif // CPP_FUNCTIONS_H
-
 ## Notes
 
 * If the AI model fails to determine the time complexity, the tool will use the total number of statements in the function as a fallback.
 * The tool attempts to analyze each function up to 5 times before falling back to the statement count.
 
 ---
-
-## Folder Structure
-
-Thesis/
-├── .gitignore
-├── docker-compose.yml
-├── Dockerfile
-├── makefile
-├── Readme.md
-├── Estimation/
-│   ├── .gitignore
-│   ├── main.py
-│   ├── Readme.md
-│   ├── time_complexity_analyzer.py
-│   ├── Model/
-│   │   └── DeepSeek-Coder-V2-Lite-Instruct-Q4_K_M.gguf
-├── Input/
-│   ├── funcs.cpp
-│   └── input.cpp
-├── Obfuscator/
-│   ├── CMakeLists.txt
-│   ├── FunctionCollector.cpp
-│   ├── FunctionCollector.h
-│   ├── makefile
-│   ├── obfuscator.cpp
-│   └── cpp_functions.h  # Generated output file

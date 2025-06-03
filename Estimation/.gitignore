@@ -1,3 +1,4 @@
 Model/*
 !Model/
+!Model/README.md
 __pycache__/
